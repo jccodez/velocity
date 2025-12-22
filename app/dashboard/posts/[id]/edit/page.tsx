@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { getPostById, updatePost, SocialPost } from "@/lib/firebase/posts";
+import { getFacebookConnection } from "@/lib/firebase/facebook";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
@@ -184,6 +185,21 @@ export default function EditPostPage() {
         return;
       }
 
+      // Get Facebook connection (client-side has auth)
+      const facebookConnection = await getFacebookConnection(originalPost.businessId);
+      if (!facebookConnection || !facebookConnection.accessToken) {
+        alert("No Facebook connection found. Please connect Facebook for this business first.");
+        setPublishing(false);
+        return;
+      }
+
+      const pageId = facebookConnection.pageId || facebookConnection.businessId;
+      if (!pageId) {
+        alert("No Facebook page ID found");
+        setPublishing(false);
+        return;
+      }
+
       // Call API to publish to Facebook (server-side for security)
       // Pass all needed data so API doesn't need to read Firestore
       const response = await fetch("/api/posts/publish", {
@@ -195,6 +211,8 @@ export default function EditPostPage() {
           businessId: originalPost.businessId,
           content: formData.content || originalPost.content,
           platform: formData.platform || originalPost.platform,
+          pageId: pageId,
+          accessToken: facebookConnection.accessToken,
         }),
       });
 

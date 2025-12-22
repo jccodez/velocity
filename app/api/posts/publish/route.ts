@@ -9,11 +9,11 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { businessId, content, platform } = body;
+    const { businessId, content, platform, pageId, accessToken } = body;
 
-    if (!businessId || !content || !platform) {
+    if (!businessId || !content || !platform || !pageId || !accessToken) {
       return NextResponse.json(
-        { error: "Business ID, content, and platform are required" },
+        { error: "Business ID, content, platform, page ID, and access token are required" },
         { status: 400 }
       );
     }
@@ -26,23 +26,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { getFacebookConnection } = await import("@/lib/firebase/facebook");
+    // Client passes Facebook connection data to avoid Firestore reads
+    const { pageId, accessToken } = body;
 
-    // Get Facebook connection
-    const facebookConnection = await getFacebookConnection(post.businessId);
-
-    if (!facebookConnection || !facebookConnection.accessToken) {
+    if (!pageId || !accessToken) {
       return NextResponse.json(
-        { error: "No Facebook connection found for this business. Please connect Facebook first." },
-        { status: 400 }
-      );
-    }
-
-    // Validate we have a page ID
-    const pageId = facebookConnection.pageId || facebookConnection.businessId;
-    if (!pageId) {
-      return NextResponse.json(
-        { error: "No Facebook page ID found" },
+        { error: "Page ID and access token are required" },
         { status: 400 }
       );
     }
@@ -51,7 +40,7 @@ export async function POST(request: NextRequest) {
     const publishResult = await publishToFacebook(
       content,
       pageId,
-      facebookConnection.accessToken
+      accessToken
     );
 
     if (publishResult.success) {

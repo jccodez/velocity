@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { getPostsByBusinessId, SocialPost, updatePost, getPostById } from "@/lib/firebase/posts";
+import { getFacebookConnection } from "@/lib/firebase/facebook";
 import { Timestamp } from "firebase/firestore";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit, Send, Loader2 } from "lucide-react";
@@ -70,6 +71,19 @@ export default function PostsPage() {
         return;
       }
 
+      // Get Facebook connection (client-side has auth)
+      const facebookConnection = await getFacebookConnection(post.businessId);
+      if (!facebookConnection || !facebookConnection.accessToken) {
+        alert("No Facebook connection found. Please connect Facebook for this business first.");
+        return;
+      }
+
+      const pageId = facebookConnection.pageId || facebookConnection.businessId;
+      if (!pageId) {
+        alert("No Facebook page ID found");
+        return;
+      }
+
       // Call API to publish to Facebook (server-side for security)
       // Pass all needed data so API doesn't need to read Firestore
       const response = await fetch("/api/posts/publish", {
@@ -81,6 +95,8 @@ export default function PostsPage() {
           businessId: post.businessId,
           content: post.content,
           platform: post.platform,
+          pageId: pageId,
+          accessToken: facebookConnection.accessToken,
         }),
       });
 

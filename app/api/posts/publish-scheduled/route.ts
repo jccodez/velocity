@@ -33,28 +33,65 @@ export async function GET(request: NextRequest) {
     
     const querySnapshot = await getDocs(q);
     
+    console.log(`[Publish Scheduled] Found ${querySnapshot.docs.length} scheduled post(s) in database`);
+    
     // Filter posts where scheduledDate has passed
-    const postsToPublish = querySnapshot.docs
-      .map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id: docSnap.id,
-          ...data,
-          scheduledDate: data.scheduledDate,
-        } as any;
-      })
-      .filter((post: any) => {
-        if (!post.scheduledDate) return false;
-        const scheduledDate = post.scheduledDate instanceof Timestamp 
-          ? post.scheduledDate 
-          : Timestamp.fromDate(new Date(post.scheduledDate));
-        return scheduledDate.toMillis() <= now.toMillis();
+    const allScheduledPosts = querySnapshot.docs.map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        ...data,
+        scheduledDate: data.scheduledDate,
+      } as any;
+    });
+    
+    const postsToPublish = allScheduledPosts.filter((post: any) => {
+      if (!post.scheduledDate) {
+        console.log(`[Publish Scheduled] Post ${post.id} skipped: no scheduledDate`);
+        return false;
+      }
+      const scheduledDate = post.scheduledDate instanceof Timestamp 
+        ? post.scheduledDate 
+        : Timestamp.fromDate(new Date(post.scheduledDate));
+      
+      const scheduledMillis = scheduledDate.toMillis();
+      const nowMillis = now.toMillis();
+      const isReady = scheduledMillis <= nowMillis;
+      
+      console.log(`[Publish Scheduled] Post ${post.id}:`, {
+        scheduledDate: scheduledDate.toDate().toISOString(),
+        scheduledMillis,
+        nowMillis,
+        isReady,
+        timeUntilPublish: isReady ? "READY NOW" : `${Math.round((scheduledMillis - nowMillis) / 1000 / 60)} minutes`,
       });
+      
+      return isReady;
+    });
+
+    console.log(`[Publish Scheduled] ${postsToPublish.length} post(s) ready to publish out of ${allScheduledPosts.length} scheduled post(s)`);
 
     if (postsToPublish.length === 0) {
+      // Log details about scheduled posts that aren't ready yet
+      if (allScheduledPosts.length > 0) {
+        console.log(`[Publish Scheduled] Scheduled posts found but not ready yet:`, 
+          allScheduledPosts.map((post: any) => ({
+            id: post.id,
+            scheduledDate: post.scheduledDate instanceof Timestamp 
+              ? post.scheduledDate.toDate().toISOString()
+              : new Date(post.scheduledDate).toISOString(),
+            businessId: post.businessId,
+          }))
+        );
+      }
+      
       return NextResponse.json({
         message: "No posts to publish",
         count: 0,
+        scheduledPostsFound: allScheduledPosts.length,
+        info: allScheduledPosts.length > 0 
+          ? `${allScheduledPosts.length} post(s) scheduled but not ready yet`
+          : "No scheduled posts found",
       });
     }
 

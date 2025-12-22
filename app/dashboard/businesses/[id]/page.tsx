@@ -302,7 +302,7 @@ function BusinessDetailContent() {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Connect this business's Facebook page to enable tone analysis from posts and post scheduling.
+              Connect this business&apos;s Facebook page to enable tone analysis from posts and post scheduling.
             </p>
           </div>
         )}
@@ -384,7 +384,7 @@ function BusinessDetailContent() {
           ) : (
             <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
               <p className="text-gray-500 text-sm">
-                No tone of voice set yet. Click "Analyze" to automatically learn the tone from your business description or website.
+                No tone of voice set yet. Click &quot;Analyze&quot; to automatically learn the tone from your business description or website.
               </p>
             </div>
           )}

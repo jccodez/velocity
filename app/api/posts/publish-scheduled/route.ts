@@ -33,11 +33,15 @@ export async function GET(request: NextRequest) {
     
     // Filter posts where scheduledDate has passed
     const postsToPublish = querySnapshot.docs
-      .map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }))
-      .filter((post) => {
+      .map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          ...data,
+          scheduledDate: data.scheduledDate,
+        } as any;
+      })
+      .filter((post: any) => {
         if (!post.scheduledDate) return false;
         const scheduledDate = post.scheduledDate instanceof Timestamp 
           ? post.scheduledDate 

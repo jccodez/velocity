@@ -173,24 +173,36 @@ export default function EditPostPage() {
   };
 
   const handlePublishNow = async () => {
-    if (!postId) return;
+    if (!postId || !originalPost) return;
     
     setPublishing(true);
     try {
+      // Call API to publish to Facebook (server-side for security)
       const response = await fetch("/api/posts/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ postId }),
+        body: JSON.stringify({ postId, businessId: originalPost.businessId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Update post status to failed on client-side
+        await updatePost(postId, {
+          status: "failed",
+          failureReason: data.error || "Failed to publish post",
+        });
         alert(data.error || "Failed to publish post");
         return;
       }
+
+      // Update post status to published on client-side (has user auth)
+      await updatePost(postId, {
+        status: "published",
+        publishedDate: Timestamp.now(),
+      });
 
       // Redirect to posts page
       router.push("/dashboard/posts");

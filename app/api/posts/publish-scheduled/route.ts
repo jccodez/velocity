@@ -237,6 +237,12 @@ async function publishToFacebook(
 
     const url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
     console.log(`[Publish Scheduled] Calling Facebook API: ${url}`);
+    console.log(`[Publish Scheduled] Request details:`, {
+      pageId: pageId,
+      messageLength: message.trim().length,
+      accessTokenLength: accessToken.length,
+      accessTokenPrefix: accessToken.substring(0, 20) + "...",
+    });
 
     const response = await fetch(url, {
       method: "POST",
@@ -250,13 +256,47 @@ async function publishToFacebook(
     });
 
     const data = await response.json();
+    
+    console.log(`[Publish Scheduled] Facebook API response:`, {
+      status: response.status,
+      statusText: response.statusText,
+      hasError: !!data.error,
+      error: data.error,
+      responseData: data,
+    });
 
     if (!response.ok || data.error) {
-      const errorMsg = data.error 
-        ? `${data.error.message || "Facebook API error"} (Code: ${data.error.code || "unknown"})`
-        : `HTTP ${response.status}: ${response.statusText}`;
+      let errorMsg = "Unknown Facebook API error";
       
-      console.error(`[Publish Scheduled] Facebook API error:`, data.error || response.statusText);
+      if (data.error) {
+        const error = data.error;
+        errorMsg = `${error.message || "Facebook API error"}`;
+        if (error.type) {
+          errorMsg += ` (Type: ${error.type})`;
+        }
+        if (error.code) {
+          errorMsg += ` (Code: ${error.code})`;
+        }
+        if (error.error_subcode) {
+          errorMsg += ` (Subcode: ${error.error_subcode})`;
+        }
+        if (error.error_user_title) {
+          errorMsg += ` - ${error.error_user_title}`;
+        }
+        if (error.error_user_msg) {
+          errorMsg += `: ${error.error_user_msg}`;
+        }
+      } else {
+        errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      
+      console.error(`[Publish Scheduled] Facebook API error details:`, {
+        fullError: data.error,
+        errorMessage: errorMsg,
+        status: response.status,
+        statusText: response.statusText,
+        fullResponse: data,
+      });
       
       return {
         success: false,

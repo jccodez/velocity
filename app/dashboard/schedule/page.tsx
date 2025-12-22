@@ -31,34 +31,28 @@ export default function SchedulePage() {
         }
       }
       
-      // Convert and filter scheduled posts only
-      const scheduled = allPosts
-        .map((post) => {
-          // Ensure scheduledDate is a Timestamp if it exists
-          let scheduledDate = post.scheduledDate;
-          if (scheduledDate && typeof scheduledDate === 'object' && 'seconds' in scheduledDate) {
-            // Convert Firestore Timestamp-like object to Timestamp
-            scheduledDate = new Timestamp(scheduledDate.seconds, scheduledDate.nanoseconds || 0);
-          }
-          return {
-            ...post,
-            scheduledDate: scheduledDate instanceof Timestamp ? scheduledDate : undefined,
-          };
-        })
-        .filter(
-          (post) => post.status === "scheduled" && post.scheduledDate
-        );
+      // Filter scheduled posts only - Firestore Timestamps should already be Timestamp objects
+      const scheduled = allPosts.filter(
+        (post) => post.status === "scheduled" && post.scheduledDate
+      );
       
       // Sort by scheduled date
       scheduled.sort((a, b) => {
         if (!a.scheduledDate || !b.scheduledDate) return 0;
-        const aMillis = a.scheduledDate instanceof Timestamp 
-          ? a.scheduledDate.toMillis() 
-          : (a.scheduledDate as any).toMillis?.() || 0;
-        const bMillis = b.scheduledDate instanceof Timestamp 
-          ? b.scheduledDate.toMillis() 
-          : (b.scheduledDate as any).toMillis?.() || 0;
-        return aMillis - bMillis;
+        // Handle both Timestamp objects (from Firestore) and plain objects
+        const getMillis = (date: any): number => {
+          if (date instanceof Timestamp) {
+            return date.toMillis();
+          }
+          if (date && typeof date === 'object' && 'seconds' in date) {
+            return (date.seconds || 0) * 1000 + ((date.nanoseconds || 0) / 1000000);
+          }
+          if (date && typeof date.toMillis === 'function') {
+            return date.toMillis();
+          }
+          return 0;
+        };
+        return getMillis(a.scheduledDate) - getMillis(b.scheduledDate);
       });
       
       setPosts(scheduled);
@@ -119,11 +113,19 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2 text-gray-600">
                       <Clock className="w-4 h-4" />
                       <span className="text-sm font-medium">
-                        {post.scheduledDate && post.scheduledDate instanceof Timestamp
-                          ? post.scheduledDate.toDate().toLocaleString()
-                          : post.scheduledDate
-                          ? new Date((post.scheduledDate as any).seconds * 1000).toLocaleString()
-                          : "Invalid date"}
+                        {(() => {
+                          const date = post.scheduledDate;
+                          if (date instanceof Timestamp) {
+                            return date.toDate().toLocaleString();
+                          }
+                          if (date && typeof date === 'object' && 'seconds' in date) {
+                            return new Date((date.seconds || 0) * 1000).toLocaleString();
+                          }
+                          if (date && typeof date.toDate === 'function') {
+                            return date.toDate().toLocaleString();
+                          }
+                          return "Invalid date";
+                        })()}
                       </span>
                     </div>
                   </div>

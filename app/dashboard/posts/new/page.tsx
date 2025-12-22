@@ -1,0 +1,280 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/hooks/useAuth";
+import { createPost } from "@/lib/firebase/posts";
+import { getBusinessesByUserId } from "@/lib/firebase/businesses";
+import { generatePostContent } from "@/lib/ai/contentGenerator";
+import { Business } from "@/lib/firebase/businesses";
+import { Timestamp } from "firebase/firestore";
+import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon } from "lucide-react";
+import Link from "next/link";
+
+const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
+
+export default function NewPostPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [isAiGenerated, setIsAiGenerated] = useState(false);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [formData, setFormData] = useState({
+    businessId: "",
+    platform: "facebook",
+    content: "",
+    topic: "",
+    scheduledDate: "",
+    scheduledTime: "",
+  });
+
+  useEffect(() => {
+    if (user) {
+      loadBusinesses();
+    }
+  }, [user]);
+
+  const loadBusinesses = async () => {
+    if (!user) return;
+    try {
+      const data = await getBusinessesByUserId(user.uid);
+      setBusinesses(data);
+      if (data.length > 0) {
+        setFormData((prev) => ({ ...prev, businessId: data[0].id || "" }));
+      }
+    } catch (error) {
+      console.error("Error loading businesses:", error);
+    }
+  };
+
+  const handleGenerateContent = async () => {
+    if (!formData.businessId) {
+      alert("Please select a business first");
+      return;
+    }
+
+    const business = businesses.find((b) => b.id === formData.businessId);
+    if (!business) return;
+
+    setGenerating(true);
+    setIsAiGenerated(true);
+    try {
+      const generated = await generatePostContent({
+        businessName: business.name,
+        businessDescription: business.description,
+        toneOfVoice: business.toneOfVoice,
+        platform: formData.platform,
+        topic: formData.topic || undefined,
+        includeCallToAction: true,
+      });
+      setFormData((prev) => ({ ...prev, content: generated.content }));
+    } catch (error) {
+      console.error("Error generating content:", error);
+      alert("Failed to generate content");
+      setIsAiGenerated(false);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !formData.businessId) return;
+
+    setLoading(true);
+    try {
+      let scheduledTimestamp;
+      if (formData.scheduledDate && formData.scheduledTime) {
+        const scheduledDateTime = new Date(
+          `${formData.scheduledDate}T${formData.scheduledTime}`
+        );
+        scheduledTimestamp = Timestamp.fromDate(scheduledDateTime);
+      }
+
+      const postData: any = {
+        content: formData.content,
+        businessId: formData.businessId,
+        platform: formData.platform,
+        status: scheduledTimestamp ? "scheduled" : "draft",
+        aiGenerated: isAiGenerated,
+        userId: user.uid,
+      };
+
+      // Only include scheduledDate if it exists
+      if (scheduledTimestamp) {
+        postData.scheduledDate = scheduledTimestamp;
+      }
+
+      await createPost(postData);
+      router.push("/dashboard/posts");
+    } catch (error) {
+      console.error("Error creating post:", error);
+      alert("Failed to create post");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (businesses.length === 0) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <p className="text-yellow-800">
+            You need to create a business first before creating posts.{" "}
+            <Link href="/dashboard/businesses/new" className="underline">
+              Create a business →
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <Link
+        href="/dashboard/posts"
+        className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Posts
+      </Link>
+
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Create New Post</h1>
+        <p className="text-gray-600 mt-2">
+          Create a new social media post for your business
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Business *
+          </label>
+          <select
+            required
+            value={formData.businessId}
+            onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          >
+            <option value="">Select a business</option>
+            {businesses.map((business) => (
+              <option key={business.id} value={business.id}>
+                {business.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Platform *
+          </label>
+          <select
+            required
+            value={formData.platform}
+            onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none capitalize"
+          >
+            {PLATFORMS.map((platform) => (
+              <option key={platform} value={platform}>
+                {platform}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Topic (Optional)
+          </label>
+          <input
+            type="text"
+            value={formData.topic}
+            onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            placeholder="e.g., New product launch, Special offer, Company news..."
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            What should this post be about? This helps AI generate more relevant content.
+          </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Content *
+            </label>
+            <button
+              type="button"
+              onClick={handleGenerateContent}
+              disabled={generating || !formData.businessId}
+              className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Sparkles className="w-4 h-4" />
+              {generating ? "Generating..." : "Generate with AI"}
+            </button>
+          </div>
+          <textarea
+            required
+            value={formData.content}
+            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+            rows={8}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            placeholder="Write your post content here, or click 'Generate with AI' to create it automatically..."
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            {formData.content.length} characters
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Schedule Date (Optional)
+            </label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="date"
+                value={formData.scheduledDate}
+                onChange={(e) => setFormData({ ...formData, scheduledDate: e.target.value })}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Schedule Time (Optional)
+            </label>
+            <input
+              type="time"
+              value={formData.scheduledTime}
+              onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-4 pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {loading ? "Creating..." : formData.scheduledDate ? "Schedule Post" : "Save as Draft"}
+          </button>
+          <Link
+            href="/dashboard/posts"
+            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </Link>
+        </div>
+      </form>
+    </div>
+  );
+}
+

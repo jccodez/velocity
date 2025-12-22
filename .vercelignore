@@ -1,0 +1,22 @@
+# Vercel ignore file
+# Files/folders listed here won't be included in Vercel deployments
+
+# Local development files
+.env.local
+.env*.local
+
+# Documentation files (optional - you can remove this if you want docs deployed)
+*.md
+!README.md
+
+# Test files (if you have any)
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Setup and troubleshooting guides (optional)
+SETUP.md
+TROUBLESHOOTING.md
+INSTALL.md
+

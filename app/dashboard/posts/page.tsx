@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { getPostsByBusinessId, SocialPost } from "@/lib/firebase/posts";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
-import { Plus, FileText, Sparkles, Calendar, CheckCircle } from "lucide-react";
+import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit } from "lucide-react";
 import Link from "next/link";
 
 export default function PostsPage() {
@@ -153,6 +153,15 @@ export default function PostsPage() {
                   </p>
                 </div>
               )}
+              <div className="flex justify-end pt-4 border-t border-gray-100">
+                <Link
+                  href={`/dashboard/posts/${post.id}/edit`}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Link>
+              </div>
             </div>
           ))}
         </div>

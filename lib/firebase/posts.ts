@@ -9,6 +9,7 @@ import {
   query,
   where,
   Timestamp,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "./config";
 
@@ -63,7 +64,7 @@ export const createPost = async (
 
 export const updatePost = async (
   postId: string,
-  updates: Partial<SocialPost>
+  updates: Partial<SocialPost> & { __deleteScheduledDate?: boolean }
 ): Promise<void> => {
   const postRef = doc(db, "posts", postId);
   
@@ -72,7 +73,16 @@ export const updatePost = async (
     updatedAt: Timestamp.now(),
   };
 
+  // Handle field deletion markers
+  if (updates.__deleteScheduledDate) {
+    cleanedUpdates.scheduledDate = deleteField();
+  }
+
   Object.entries(updates).forEach(([key, value]) => {
+    // Skip internal deletion markers and fields that should be deleted
+    if (key.startsWith('__')) {
+      return;
+    }
     if (value !== undefined && value !== null) {
       // Handle empty arrays
       if (Array.isArray(value) && value.length === 0) {

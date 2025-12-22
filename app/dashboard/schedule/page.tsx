@@ -124,10 +124,11 @@ export default function SchedulePage() {
                             return date.toDate().toLocaleString();
                           }
                           if (date && typeof date === 'object' && 'seconds' in date) {
-                            return new Date((date.seconds || 0) * 1000).toLocaleString();
+                            const dateObj = date as { seconds: number; nanoseconds?: number };
+                            return new Date((dateObj.seconds || 0) * 1000).toLocaleString();
                           }
-                          if (date && typeof date.toDate === 'function') {
-                            return date.toDate().toLocaleString();
+                          if (date && typeof (date as any).toDate === 'function') {
+                            return (date as any).toDate().toLocaleString();
                           }
                           return "Invalid date";
                         })()}

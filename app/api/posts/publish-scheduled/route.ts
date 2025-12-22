@@ -99,8 +99,34 @@ export async function GET(request: NextRequest) {
 
     for (const post of postsToPublish) {
       try {
+        console.log(`[Publish Scheduled] Processing post ${post.id} for business ${post.businessId}`);
+        
         // getFacebookConnection is already imported above
-        const facebookConnection = await getFacebookConnection(post.businessId);
+        let facebookConnection;
+        try {
+          facebookConnection = await getFacebookConnection(post.businessId);
+        } catch (fbError: any) {
+          const errorMsg = `Failed to get Facebook connection: ${fbError.message || fbError}`;
+          console.error(`[Publish Scheduled] Post ${post.id} failed to get Facebook connection:`, fbError);
+          console.error(`[Publish Scheduled] Error details:`, {
+            error: fbError.message,
+            code: fbError.code,
+            stack: fbError.stack,
+          });
+          
+          // Mark as failed with reason
+          await updateDoc(doc(db, "posts", post.id), {
+            status: "failed",
+            updatedAt: Timestamp.now(),
+            failureReason: errorMsg,
+          });
+          results.push({
+            postId: post.id,
+            status: "failed",
+            reason: errorMsg,
+          });
+          continue;
+        }
         
         if (!facebookConnection || !facebookConnection.accessToken) {
           const errorMsg = !facebookConnection 

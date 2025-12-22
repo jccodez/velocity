@@ -9,21 +9,21 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { postId } = body;
+    const { postId, businessId } = body;
 
-    if (!postId) {
+    if (!postId || !businessId) {
       return NextResponse.json(
-        { error: "Post ID is required" },
+        { error: "Post ID and Business ID are required" },
         { status: 400 }
       );
     }
 
     // Dynamically import Firebase to avoid initialization during build
-    const { doc, getDoc, updateDoc, Timestamp } = await import("firebase/firestore");
+    const { doc, getDoc } = await import("firebase/firestore");
     const { db } = await import("@/lib/firebase/config");
     const { getFacebookConnection } = await import("@/lib/firebase/facebook");
 
-    // Get the post
+    // Get the post (client will verify ownership via Firestore rules)
     const postRef = doc(db, "posts", postId);
     const postSnap = await getDoc(postRef);
 
@@ -35,6 +35,14 @@ export async function POST(request: NextRequest) {
     }
 
     const post = postSnap.data();
+    
+    // Verify businessId matches
+    if (post.businessId !== businessId) {
+      return NextResponse.json(
+        { error: "Business ID mismatch" },
+        { status: 400 }
+      );
+    }
 
     // Check if post is already published
     if (post.status === "published") {
@@ -79,26 +87,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (publishResult.success) {
-      // Update post status to published
-      await updateDoc(postRef, {
-        status: "published",
-        publishedDate: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-
+      // Client will update Firestore (has user auth)
       return NextResponse.json({
         success: true,
         message: "Post published successfully",
         facebookPostId: publishResult.facebookPostId,
       });
     } else {
-      // Mark as failed
-      await updateDoc(postRef, {
-        status: "failed",
-        updatedAt: Timestamp.now(),
-        failureReason: publishResult.error,
-      });
-
+      // Return error - client will update status
       return NextResponse.json(
         { error: publishResult.error || "Failed to publish post" },
         { status: 500 }

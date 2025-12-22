@@ -2,7 +2,8 @@
 
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
-import { getPostsByBusinessId, SocialPost } from "@/lib/firebase/posts";
+import { getPostsByBusinessId, SocialPost, updatePost, getPostById } from "@/lib/firebase/posts";
+import { Timestamp } from "firebase/firestore";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit, Send, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -56,20 +57,40 @@ export default function PostsPage() {
     
     setPublishingPostId(postId);
     try {
+      // Get the post to verify we have access and get business info
+      const post = await getPostById(postId);
+      if (!post) {
+        alert("Post not found");
+        return;
+      }
+
+      // Call API to publish to Facebook (server-side for security)
       const response = await fetch("/api/posts/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ postId }),
+        body: JSON.stringify({ postId, businessId: post.businessId }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Update post status to failed on client-side
+        await updatePost(postId, {
+          status: "failed",
+          failureReason: data.error || "Failed to publish post",
+        });
         alert(data.error || "Failed to publish post");
+        await loadPosts();
         return;
       }
+
+      // Update post status to published on client-side (has user auth)
+      await updatePost(postId, {
+        status: "published",
+        publishedDate: Timestamp.now(),
+      });
 
       // Reload posts to show updated status
       await loadPosts();

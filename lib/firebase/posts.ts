@@ -95,10 +95,14 @@ export const getPostsByBusinessId = async (
 ): Promise<SocialPost[]> => {
   const q = query(collection(db, "posts"), where("businessId", "==", businessId));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as SocialPost[];
+  return querySnapshot.docs.map((doc) => {
+    const data = doc.data();
+    // Firestore Timestamps are already Timestamp objects, so we can return them as-is
+    return {
+      id: doc.id,
+      ...data,
+    } as SocialPost;
+  });
 };
 
 export const getPostsByCampaignId = async (

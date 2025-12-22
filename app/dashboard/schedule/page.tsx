@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { getPostsByBusinessId, SocialPost } from "@/lib/firebase/posts";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { Calendar, Clock } from "lucide-react";
+import Link from "next/link";
+import { Timestamp } from "firebase/firestore";
 
 export default function SchedulePage() {
   const { user } = useAuth();
@@ -28,15 +30,37 @@ export default function SchedulePage() {
           allPosts = [...allPosts, ...businessPosts];
         }
       }
-      // Filter scheduled posts only
-      const scheduled = allPosts.filter(
-        (post) => post.status === "scheduled" && post.scheduledDate
-      );
+      
+      // Convert and filter scheduled posts only
+      const scheduled = allPosts
+        .map((post) => {
+          // Ensure scheduledDate is a Timestamp if it exists
+          let scheduledDate = post.scheduledDate;
+          if (scheduledDate && typeof scheduledDate === 'object' && 'seconds' in scheduledDate) {
+            // Convert Firestore Timestamp-like object to Timestamp
+            scheduledDate = new Timestamp(scheduledDate.seconds, scheduledDate.nanoseconds || 0);
+          }
+          return {
+            ...post,
+            scheduledDate: scheduledDate instanceof Timestamp ? scheduledDate : undefined,
+          };
+        })
+        .filter(
+          (post) => post.status === "scheduled" && post.scheduledDate
+        );
+      
       // Sort by scheduled date
       scheduled.sort((a, b) => {
         if (!a.scheduledDate || !b.scheduledDate) return 0;
-        return a.scheduledDate.toMillis() - b.scheduledDate.toMillis();
+        const aMillis = a.scheduledDate instanceof Timestamp 
+          ? a.scheduledDate.toMillis() 
+          : (a.scheduledDate as any).toMillis?.() || 0;
+        const bMillis = b.scheduledDate instanceof Timestamp 
+          ? b.scheduledDate.toMillis() 
+          : (b.scheduledDate as any).toMillis?.() || 0;
+        return aMillis - bMillis;
       });
+      
       setPosts(scheduled);
     } catch (error) {
       console.error("Error loading scheduled posts:", error);
@@ -68,9 +92,16 @@ export default function SchedulePage() {
           <h3 className="text-xl font-semibold text-gray-900 mb-2">
             No scheduled posts
           </h3>
-          <p className="text-gray-600">
-            Posts you schedule will appear here.
+          <p className="text-gray-600 mb-4">
+            Posts you schedule will appear here. Make sure to set a scheduled date and time when creating a post.
           </p>
+          <Link
+            href="/dashboard/posts/new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Calendar className="w-4 h-4" />
+            Create Scheduled Post
+          </Link>
         </div>
       ) : (
         <div className="space-y-4">
@@ -88,7 +119,11 @@ export default function SchedulePage() {
                     <div className="flex items-center gap-2 text-gray-600">
                       <Clock className="w-4 h-4" />
                       <span className="text-sm font-medium">
-                        {post.scheduledDate?.toDate().toLocaleString()}
+                        {post.scheduledDate && post.scheduledDate instanceof Timestamp
+                          ? post.scheduledDate.toDate().toLocaleString()
+                          : post.scheduledDate
+                          ? new Date((post.scheduledDate as any).seconds * 1000).toLocaleString()
+                          : "Invalid date"}
                       </span>
                     </div>
                   </div>

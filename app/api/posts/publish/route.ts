@@ -26,17 +26,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Client passes Facebook connection data to avoid Firestore reads
-    const { pageId, accessToken } = body;
-
-    if (!pageId || !accessToken) {
-      return NextResponse.json(
-        { error: "Page ID and access token are required" },
-        { status: 400 }
-      );
-    }
-
-    // Publish to Facebook
+    // Publish to Facebook (pageId and accessToken already extracted from body above)
     const publishResult = await publishToFacebook(
       content,
       pageId,

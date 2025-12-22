@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { collection, query, where, getDocs, updateDoc, doc, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
-import { getFacebookConnection } from "@/lib/firebase/facebook";
 
 /**
  * API Route to publish scheduled posts
@@ -19,6 +16,11 @@ export async function GET(request: NextRequest) {
   //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // }
   try {
+    // Dynamically import Firebase to avoid initialization during build
+    const { collection, query, where, getDocs, updateDoc, doc, Timestamp } = await import("firebase/firestore");
+    const { db } = await import("@/lib/firebase/config");
+    const { getFacebookConnection } = await import("@/lib/firebase/facebook");
+    
     const now = Timestamp.now();
     
     // Find all posts that are scheduled
@@ -60,8 +62,7 @@ export async function GET(request: NextRequest) {
 
     for (const post of postsToPublish) {
       try {
-        // Get the Facebook connection for this business
-        // Note: getFacebookConnection takes businessId, not userId
+        // getFacebookConnection is already imported above
         const facebookConnection = await getFacebookConnection(post.businessId);
         
         if (!facebookConnection || !facebookConnection.accessToken) {

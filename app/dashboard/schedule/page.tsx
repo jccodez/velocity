@@ -32,9 +32,14 @@ export default function SchedulePage() {
       }
       
       // Filter scheduled posts only - Firestore Timestamps should already be Timestamp objects
-      const scheduled = allPosts.filter(
-        (post) => post.status === "scheduled" && post.scheduledDate
-      );
+      // Show all scheduled posts (past and future) - they'll be published by the cron job
+      const scheduled = allPosts.filter((post) => {
+        const isScheduled = post.status === "scheduled" && post.scheduledDate;
+        if (!isScheduled && post.status === "scheduled") {
+          console.warn("Post has 'scheduled' status but no scheduledDate:", post.id);
+        }
+        return isScheduled;
+      });
       
       // Sort by scheduled date
       scheduled.sort((a, b) => {

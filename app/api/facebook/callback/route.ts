@@ -75,11 +75,21 @@ export async function GET(request: NextRequest) {
     const longLivedToken = longLivedData.access_token || accessToken;
 
     // Get user's pages to find the matching page
+    // The access_token field returned here is the PAGE ACCESS TOKEN (not user token)
+    // This is what we need to post to the page
     const pagesResponse = await fetch(
       `https://graph.facebook.com/v18.0/me/accounts?access_token=${longLivedToken}&fields=id,name,access_token`
     );
 
     const pagesData = await pagesResponse.json();
+    
+    if (pagesData.error) {
+      console.error("Facebook pages API error:", pagesData.error);
+      return NextResponse.redirect(
+        `${baseUrl}/dashboard/businesses/${businessId}?facebook_error=${encodeURIComponent(pagesData.error.message || "Failed to fetch pages")}`
+      );
+    }
+    
     const pages = pagesData.data || [];
 
     if (pages.length === 0) {
@@ -90,10 +100,17 @@ export async function GET(request: NextRequest) {
 
     // Use first page (or let user select later)
     const selectedPage = pages[0];
-
-    // Store token temporarily in URL params - client will verify and save
-    // This avoids permission issues in the API route
-    const pageToken = selectedPage?.access_token || longLivedToken;
+    
+    // IMPORTANT: selectedPage.access_token is the PAGE ACCESS TOKEN
+    // This is different from the user access token and is required for posting
+    const pageToken = selectedPage?.access_token;
+    
+    if (!pageToken) {
+      console.error("No page access token found in response:", selectedPage);
+      return NextResponse.redirect(
+        `${baseUrl}/dashboard/businesses/${businessId}?facebook_error=${encodeURIComponent("Failed to get page access token. Please try reconnecting.")}`
+      );
+    }
     
     // Redirect with token data - client will complete the save
     return NextResponse.redirect(

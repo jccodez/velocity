@@ -29,7 +29,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Facebook OAuth URL
-  const scope = "pages_read_engagement,pages_read_user_content,pages_show_list,read_insights";
+  // Required permissions for posting to pages:
+  // - pages_manage_posts: Create and publish posts to pages
+  // - pages_read_engagement: Read page engagement metrics
+  // - pages_show_list: List pages the user manages
+  // - pages_read_user_content: Read user content on pages (for tone analysis)
+  const scope = "pages_manage_posts,pages_read_engagement,pages_read_user_content,pages_show_list,read_insights";
   const facebookOAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${facebookAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&response_type=code&state=${businessId}`;
 
   return NextResponse.redirect(facebookOAuthUrl);

@@ -8,7 +8,7 @@ import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
-import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 
 const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
@@ -32,6 +32,7 @@ export default function EditPostPage() {
   });
   const [isAiGenerated, setIsAiGenerated] = useState(false);
   const [originalPost, setOriginalPost] = useState<SocialPost | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     if (user && postId) {
@@ -168,6 +169,36 @@ export default function EditPostPage() {
       alert("Failed to update post");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePublishNow = async () => {
+    if (!postId) return;
+    
+    setPublishing(true);
+    try {
+      const response = await fetch("/api/posts/publish", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ postId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Failed to publish post");
+        return;
+      }
+
+      // Redirect to posts page
+      router.push("/dashboard/posts");
+    } catch (error) {
+      console.error("Error publishing post:", error);
+      alert("Failed to publish post");
+    } finally {
+      setPublishing(false);
     }
   };
 

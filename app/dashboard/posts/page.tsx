@@ -64,13 +64,24 @@ export default function PostsPage() {
         return;
       }
 
+      // Check if already published
+      if (post.status === "published") {
+        alert("Post is already published");
+        return;
+      }
+
       // Call API to publish to Facebook (server-side for security)
+      // Pass all needed data so API doesn't need to read Firestore
       const response = await fetch("/api/posts/publish", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ postId, businessId: post.businessId }),
+        body: JSON.stringify({ 
+          businessId: post.businessId,
+          content: post.content,
+          platform: post.platform,
+        }),
       });
 
       const data = await response.json();

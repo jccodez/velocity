@@ -9,56 +9,24 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { postId, businessId } = body;
+    const { businessId, content, platform } = body;
 
-    if (!postId || !businessId) {
+    if (!businessId || !content || !platform) {
       return NextResponse.json(
-        { error: "Post ID and Business ID are required" },
-        { status: 400 }
-      );
-    }
-
-    // Dynamically import Firebase to avoid initialization during build
-    const { doc, getDoc } = await import("firebase/firestore");
-    const { db } = await import("@/lib/firebase/config");
-    const { getFacebookConnection } = await import("@/lib/firebase/facebook");
-
-    // Get the post (client will verify ownership via Firestore rules)
-    const postRef = doc(db, "posts", postId);
-    const postSnap = await getDoc(postRef);
-
-    if (!postSnap.exists()) {
-      return NextResponse.json(
-        { error: "Post not found" },
-        { status: 404 }
-      );
-    }
-
-    const post = postSnap.data();
-    
-    // Verify businessId matches
-    if (post.businessId !== businessId) {
-      return NextResponse.json(
-        { error: "Business ID mismatch" },
-        { status: 400 }
-      );
-    }
-
-    // Check if post is already published
-    if (post.status === "published") {
-      return NextResponse.json(
-        { error: "Post is already published" },
+        { error: "Business ID, content, and platform are required" },
         { status: 400 }
       );
     }
 
     // Only support Facebook for now
-    if (post.platform !== "facebook") {
+    if (platform !== "facebook") {
       return NextResponse.json(
-        { error: `Publishing to ${post.platform} is not yet supported` },
+        { error: `Publishing to ${platform} is not yet supported` },
         { status: 400 }
       );
     }
+
+    const { getFacebookConnection } = await import("@/lib/firebase/facebook");
 
     // Get Facebook connection
     const facebookConnection = await getFacebookConnection(post.businessId);
@@ -81,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Publish to Facebook
     const publishResult = await publishToFacebook(
-      post.content,
+      content,
       pageId,
       facebookConnection.accessToken
     );

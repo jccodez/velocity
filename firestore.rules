@@ -51,8 +51,17 @@ service cloud.firestore {
     
     // Posts collection
     match /posts/{postId} {
-      // Allow read if user owns the post
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Helper to check if user owns the business that the post belongs to
+      function ownsPostBusiness() {
+        return isAuthenticated() &&
+               resource.data.businessId != null &&
+               exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+               get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.userId == request.auth.uid;
+      }
+      
+      // Allow read if user owns the post (either directly via userId or via business ownership)
+      allow read: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || ownsPostBusiness());
       
       // Allow read of scheduled posts without auth (for cron job to find posts to publish)
       // Note: This is needed for the cron job but less secure. Consider using Firebase Admin SDK.

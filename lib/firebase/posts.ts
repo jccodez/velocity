@@ -22,6 +22,7 @@ export interface SocialPost {
   status: "draft" | "scheduled" | "published" | "failed";
   scheduledDate?: Timestamp;
   publishedDate?: Timestamp;
+  failureReason?: string; // Reason why post failed to publish
   mediaUrls?: string[]; // URLs to images/videos
   aiGenerated: boolean;
   userId: string;

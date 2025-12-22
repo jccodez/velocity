@@ -146,6 +146,12 @@ export default function PostsPage() {
               <p className="text-gray-700 whitespace-pre-wrap mb-4">
                 {post.content}
               </p>
+              {post.status === "failed" && post.failureReason && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm font-medium text-red-800 mb-1">Publishing Failed</p>
+                  <p className="text-xs text-red-700">{post.failureReason}</p>
+                </div>
+              )}
               {post.mediaUrls && post.mediaUrls.length > 0 && (
                 <div className="mb-4">
                   <p className="text-xs text-gray-500 mb-2">

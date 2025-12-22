@@ -70,12 +70,20 @@ export async function GET(request: NextRequest) {
             ? `No Facebook connection found for business ${post.businessId}`
             : `Facebook connection exists but no access token for business ${post.businessId}`;
           
-          console.error(`[Publish Scheduled] ${errorMsg}`);
+          console.error(`[Publish Scheduled] Post ${post.id} failed: ${errorMsg}`);
+          console.error(`[Publish Scheduled] Post details:`, {
+            postId: post.id,
+            businessId: post.businessId,
+            platform: post.platform,
+            hasConnection: !!facebookConnection,
+            hasToken: !!facebookConnection?.accessToken,
+          });
           
-          // No Facebook connection, mark as failed
+          // No Facebook connection, mark as failed with reason
           await updateDoc(doc(db, "posts", post.id), {
             status: "failed",
             updatedAt: Timestamp.now(),
+            failureReason: errorMsg,
           });
           results.push({
             postId: post.id,
@@ -89,11 +97,17 @@ export async function GET(request: NextRequest) {
         const pageId = facebookConnection.pageId || facebookConnection.businessId;
         if (!pageId) {
           const errorMsg = `No page ID found for business ${post.businessId}`;
-          console.error(`[Publish Scheduled] ${errorMsg}`);
+          console.error(`[Publish Scheduled] Post ${post.id} failed: ${errorMsg}`);
+          console.error(`[Publish Scheduled] Facebook connection details:`, {
+            pageId: facebookConnection.pageId,
+            businessId: facebookConnection.businessId,
+            hasPageId: !!facebookConnection.pageId,
+          });
           
           await updateDoc(doc(db, "posts", post.id), {
             status: "failed",
             updatedAt: Timestamp.now(),
+            failureReason: errorMsg,
           });
           results.push({
             postId: post.id,
@@ -129,11 +143,19 @@ export async function GET(request: NextRequest) {
         } else {
           const errorMsg = publishResult.error || "Unknown Facebook API error";
           console.error(`[Publish Scheduled] Failed to publish post ${post.id}: ${errorMsg}`);
+          console.error(`[Publish Scheduled] Post details:`, {
+            postId: post.id,
+            businessId: post.businessId,
+            platform: post.platform,
+            contentLength: post.content?.length || 0,
+            pageId: pageId,
+          });
           
-          // Mark as failed
+          // Mark as failed with reason
           await updateDoc(doc(db, "posts", post.id), {
             status: "failed",
             updatedAt: Timestamp.now(),
+            failureReason: errorMsg,
           });
           results.push({
             postId: post.id,
@@ -142,16 +164,25 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (error: any) {
-        console.error(`Error publishing post ${post.id}:`, error);
-        // Mark as failed
+        const errorMsg = error.message || "Unknown error during publishing";
+        console.error(`[Publish Scheduled] Uncaught error publishing post ${post.id}:`, error);
+        console.error(`[Publish Scheduled] Error stack:`, error.stack);
+        console.error(`[Publish Scheduled] Post details:`, {
+          postId: post.id,
+          businessId: post.businessId,
+          platform: post.platform,
+        });
+        
+        // Mark as failed with reason
         await updateDoc(doc(db, "posts", post.id), {
           status: "failed",
           updatedAt: Timestamp.now(),
+          failureReason: errorMsg,
         });
         results.push({
           postId: post.id,
           status: "failed",
-          reason: error.message || "Unknown error",
+          reason: errorMsg,
         });
       }
     }

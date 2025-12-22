@@ -181,7 +181,7 @@ async function publishToFacebook(
   message: string,
   pageId: string,
   accessToken: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; postId?: string }> {
   try {
     if (!message || !message.trim()) {
       return {

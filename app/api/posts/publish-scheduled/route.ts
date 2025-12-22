@@ -66,6 +66,12 @@ export async function GET(request: NextRequest) {
         const facebookConnection = await getFacebookConnection(post.businessId);
         
         if (!facebookConnection || !facebookConnection.accessToken) {
+          const errorMsg = !facebookConnection 
+            ? `No Facebook connection found for business ${post.businessId}`
+            : `Facebook connection exists but no access token for business ${post.businessId}`;
+          
+          console.error(`[Publish Scheduled] ${errorMsg}`);
+          
           // No Facebook connection, mark as failed
           await updateDoc(doc(db, "posts", post.id), {
             status: "failed",
@@ -74,19 +80,41 @@ export async function GET(request: NextRequest) {
           results.push({
             postId: post.id,
             status: "failed",
-            reason: "No Facebook connection found",
+            reason: errorMsg,
           });
           continue;
         }
 
+        // Validate we have a page ID
+        const pageId = facebookConnection.pageId || facebookConnection.businessId;
+        if (!pageId) {
+          const errorMsg = `No page ID found for business ${post.businessId}`;
+          console.error(`[Publish Scheduled] ${errorMsg}`);
+          
+          await updateDoc(doc(db, "posts", post.id), {
+            status: "failed",
+            updatedAt: Timestamp.now(),
+          });
+          results.push({
+            postId: post.id,
+            status: "failed",
+            reason: errorMsg,
+          });
+          continue;
+        }
+
+        console.log(`[Publish Scheduled] Publishing post ${post.id} to Facebook page ${pageId}`);
+
         // Publish to Facebook
         const publishResult = await publishToFacebook(
           post.content,
-          facebookConnection.pageId || facebookConnection.businessId,
+          pageId,
           facebookConnection.accessToken
         );
 
         if (publishResult.success) {
+          console.log(`[Publish Scheduled] Successfully published post ${post.id} to Facebook`);
+          
           // Update post status to published
           await updateDoc(doc(db, "posts", post.id), {
             status: "published",
@@ -99,6 +127,9 @@ export async function GET(request: NextRequest) {
             platform: post.platform,
           });
         } else {
+          const errorMsg = publishResult.error || "Unknown Facebook API error";
+          console.error(`[Publish Scheduled] Failed to publish post ${post.id}: ${errorMsg}`);
+          
           // Mark as failed
           await updateDoc(doc(db, "posts", post.id), {
             status: "failed",
@@ -107,7 +138,7 @@ export async function GET(request: NextRequest) {
           results.push({
             postId: post.id,
             status: "failed",
-            reason: publishResult.error,
+            reason: errorMsg,
           });
         }
       } catch (error: any) {
@@ -129,6 +160,10 @@ export async function GET(request: NextRequest) {
       message: `Processed ${postsToPublish.length} scheduled post(s)`,
       count: postsToPublish.length,
       results,
+      summary: {
+        published: results.filter((r: any) => r.status === "published").length,
+        failed: results.filter((r: any) => r.status === "failed").length,
+      },
     });
   } catch (error: any) {
     console.error("Error publishing scheduled posts:", error);
@@ -148,31 +183,60 @@ async function publishToFacebook(
   accessToken: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/v18.0/${pageId}/feed`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message,
-          access_token: accessToken,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (data.error) {
+    if (!message || !message.trim()) {
       return {
         success: false,
-        error: data.error.message || "Facebook API error",
+        error: "Post content is empty",
       };
     }
 
-    return { success: true };
+    if (!pageId || !pageId.trim()) {
+      return {
+        success: false,
+        error: "Facebook page ID is missing",
+      };
+    }
+
+    if (!accessToken || !accessToken.trim()) {
+      return {
+        success: false,
+        error: "Facebook access token is missing",
+      };
+    }
+
+    const url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+    console.log(`[Publish Scheduled] Calling Facebook API: ${url}`);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: message.trim(),
+        access_token: accessToken,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || data.error) {
+      const errorMsg = data.error 
+        ? `${data.error.message || "Facebook API error"} (Code: ${data.error.code || "unknown"})`
+        : `HTTP ${response.status}: ${response.statusText}`;
+      
+      console.error(`[Publish Scheduled] Facebook API error:`, data.error || response.statusText);
+      
+      return {
+        success: false,
+        error: errorMsg,
+      };
+    }
+
+    console.log(`[Publish Scheduled] Facebook API success. Post ID: ${data.id || "unknown"}`);
+    return { success: true, postId: data.id };
   } catch (error: any) {
+    console.error(`[Publish Scheduled] Network error publishing to Facebook:`, error);
     return {
       success: false,
       error: error.message || "Failed to publish to Facebook",

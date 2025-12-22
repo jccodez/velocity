@@ -4,13 +4,14 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { getPostsByBusinessId, SocialPost } from "@/lib/firebase/posts";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
-import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit } from "lucide-react";
+import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit, Send, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function PostsPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publishingPostId, setPublishingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -49,6 +50,36 @@ export default function PostsPage() {
       </div>
     );
   }
+
+  const handlePublishNow = async (postId: string) => {
+    if (!postId) return;
+    
+    setPublishingPostId(postId);
+    try {
+      const response = await fetch("/api/posts/publish", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ postId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Failed to publish post");
+        return;
+      }
+
+      // Reload posts to show updated status
+      await loadPosts();
+    } catch (error) {
+      console.error("Error publishing post:", error);
+      alert("Failed to publish post");
+    } finally {
+      setPublishingPostId(null);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -159,7 +190,26 @@ export default function PostsPage() {
                   </p>
                 </div>
               )}
-              <div className="flex justify-end pt-4 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                {post.status !== "published" && (
+                  <button
+                    onClick={() => post.id && handlePublishNow(post.id)}
+                    disabled={publishingPostId === post.id}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {publishingPostId === post.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Post Now
+                      </>
+                    )}
+                  </button>
+                )}
                 <Link
                   href={`/dashboard/posts/${post.id}/edit`}
                   className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"

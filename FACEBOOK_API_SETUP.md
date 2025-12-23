@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-This guide will help you set up the Facebook Graph API connection for your Social Posts application.
+This guide will help you set up the Facebook Graph API connection for your Velocity application.
 
 ## Step 1: Create Meta/Facebook App
 
@@ -20,7 +20,7 @@ This guide will help you set up the Facebook Graph API connection for your Socia
    - **"Business"** (recommended)
    - Or **"Other"** if Business isn't available
 5. Fill in:
-   - **App Display Name**: "Social Posts" (or your preferred name)
+   - **App Display Name**: "Velocity" (or your preferred name)
    - **App Contact Email**: Your email
 6. Click **"Create App"** or **"Next"**
 

@@ -78,7 +78,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">
-                Social Posts
+                Velocity
               </span>
             </div>
             <button

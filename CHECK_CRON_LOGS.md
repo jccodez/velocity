@@ -5,7 +5,7 @@ When posts fail to publish, you can check the logs to see what went wrong.
 ## Viewing Logs in Vercel Dashboard
 
 1. Go to your [Vercel Dashboard](https://vercel.com/dashboard)
-2. Select your project (`social-posts` or similar)
+2. Select your project (`velocity`)
 3. Click on the **"Logs"** tab (or go to the **"Deployments"** tab and click on a deployment)
 4. Look for logs with the prefix `[Publish Scheduled]`
 

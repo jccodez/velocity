@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Social Posts - Content Management Dashboard",
-  description: "Manage your social media campaigns and content",
+  title: "Velocity - Social Media Management Dashboard",
+  description: "Manage your social media campaigns and content with AI-powered automation",
 };
 
 export default function RootLayout({

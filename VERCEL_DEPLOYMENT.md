@@ -1,6 +1,6 @@
 # Deploying to Vercel
 
-This guide will walk you through deploying your Social Posts app to Vercel.
+This guide will walk you through deploying your Velocity app to Vercel.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ git add .
 git commit -m "Initial commit"
 
 # Add your GitHub repository as remote
-git remote add origin https://github.com/yourusername/social-posts.git
+git remote add origin https://github.com/yourusername/velocity.git
 
 # Push to GitHub
 git push -u origin main

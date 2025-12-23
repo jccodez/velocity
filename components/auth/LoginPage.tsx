@@ -40,7 +40,7 @@ export default function LoginPage() {
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Social Posts
+            Velocity
           </h1>
           <p className="text-gray-600">
             {isLogin ? "Welcome back!" : "Create your account"}

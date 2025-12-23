@@ -8,7 +8,7 @@ This guide will help you set up OpenAI API integration for AI-powered post gener
 2. Sign in or create an account
 3. Navigate to [API Keys](https://platform.openai.com/api-keys)
 4. Click "Create new secret key"
-5. Give it a name (e.g., "Social Posts App")
+5. Give it a name (e.g., "Velocity App")
 6. **Copy the key immediately** - you won't be able to see it again!
 
 ## Step 2: Add API Key to Your Project

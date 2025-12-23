@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Social Posts - Installation Script
+# Velocity - Installation Script
 # This script fixes common npm installation issues
 
-echo "🔧 Social Posts - Installation Helper"
+echo "🔧 Velocity - Installation Helper"
 echo "======================================"
 echo ""
 

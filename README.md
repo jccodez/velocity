@@ -1,4 +1,4 @@
-# Social Posts - Social Media Management Dashboard
+# Velocity - Social Media Management Dashboard
 
 A comprehensive social media management tool for managing businesses, campaigns, and automated social media posts with AI-powered content generation.
 

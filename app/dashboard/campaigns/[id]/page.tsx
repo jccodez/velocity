@@ -31,10 +31,17 @@ export default function CampaignDetailPage() {
     if (!user || !campaignId) return;
     setLoading(true);
     try {
-      const [campaignData, postsData] = await Promise.all([
-        getCampaignById(campaignId),
-        getPostsByCampaignId(campaignId),
-      ]);
+      console.log(`[Campaign Detail] Loading campaign ${campaignId} for user ${user.uid}`);
+      
+      // Load campaign first
+      let campaignData;
+      try {
+        campaignData = await getCampaignById(campaignId);
+        console.log(`[Campaign Detail] Campaign loaded:`, campaignData ? { id: campaignData.id, name: campaignData.name, userId: campaignData.userId, businessId: campaignData.businessId } : "null");
+      } catch (campaignError: any) {
+        console.error(`[Campaign Detail] Error loading campaign:`, campaignError);
+        throw new Error(`Failed to load campaign: ${campaignError.message || campaignError.code || "Unknown error"}`);
+      }
 
       if (!campaignData) {
         alert("Campaign not found");
@@ -44,28 +51,52 @@ export default function CampaignDetailPage() {
 
       // Verify ownership
       if (campaignData.userId !== user.uid) {
+        console.warn(`[Campaign Detail] User ${user.uid} does not own campaign ${campaignId} (owner: ${campaignData.userId})`);
         alert("You don't have permission to view this campaign");
         router.push("/dashboard/campaigns");
         return;
       }
 
-      // Auto-update campaign status based on dates
-      const statusUpdate = await updateCampaignStatusByDates(campaignId);
-      if (statusUpdate.updated && statusUpdate.newStatus) {
-        campaignData.status = statusUpdate.newStatus;
+      // Load posts (don't fail if this fails)
+      let postsData: SocialPost[] = [];
+      try {
+        postsData = await getPostsByCampaignId(campaignId);
+        console.log(`[Campaign Detail] Loaded ${postsData.length} post(s) for campaign`);
+      } catch (postsError: any) {
+        console.error(`[Campaign Detail] Error loading posts (non-fatal):`, postsError);
+        // Continue without posts
+      }
+
+      // Auto-update campaign status based on dates (don't fail if this fails)
+      try {
+        const statusUpdate = await updateCampaignStatusByDates(campaignId);
+        if (statusUpdate.updated && statusUpdate.newStatus) {
+          console.log(`[Campaign Detail] Status updated from ${campaignData.status} to ${statusUpdate.newStatus}`);
+          campaignData.status = statusUpdate.newStatus;
+        }
+      } catch (statusError: any) {
+        console.error(`[Campaign Detail] Error updating status (non-fatal):`, statusError);
+        // Continue without status update
       }
 
       setCampaign(campaignData);
       setPosts(postsData);
 
-      // Load business
+      // Load business (don't fail if this fails)
       if (campaignData.businessId) {
-        const businessData = await getBusinessById(campaignData.businessId);
-        setBusiness(businessData);
+        try {
+          const businessData = await getBusinessById(campaignData.businessId);
+          console.log(`[Campaign Detail] Business loaded:`, businessData ? businessData.name : "null");
+          setBusiness(businessData);
+        } catch (businessError: any) {
+          console.error(`[Campaign Detail] Error loading business (non-fatal):`, businessError);
+          // Continue without business data
+        }
       }
-    } catch (error) {
-      console.error("Error loading campaign:", error);
-      alert("Failed to load campaign");
+    } catch (error: any) {
+      console.error("[Campaign Detail] Error loading campaign:", error);
+      const errorMessage = error.message || "Failed to load campaign. Please check the console for details.";
+      alert(errorMessage);
       router.push("/dashboard/campaigns");
     } finally {
       setLoading(false);

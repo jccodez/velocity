@@ -109,12 +109,23 @@ export const getCampaignsByUserId = async (
 export const getCampaignById = async (
   campaignId: string
 ): Promise<Campaign | null> => {
-  const docRef = doc(db, "campaigns", campaignId);
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Campaign;
+  try {
+    const docRef = doc(db, "campaigns", campaignId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const campaignData = { id: docSnap.id, ...docSnap.data() } as Campaign;
+      console.log(`[getCampaignById] Found campaign ${campaignId}:`, { name: campaignData.name, userId: campaignData.userId, businessId: campaignData.businessId });
+      return campaignData;
+    }
+    console.log(`[getCampaignById] Campaign ${campaignId} not found`);
+    return null;
+  } catch (error: any) {
+    console.error(`[getCampaignById] Error loading campaign ${campaignId}:`, error);
+    if (error.code === 'permission-denied') {
+      throw new Error(`Permission denied: Unable to read campaign. Please check Firestore security rules.`);
+    }
+    throw error;
   }
-  return null;
 };
 
 /**

@@ -61,10 +61,37 @@ export default function CampaignDetailPage() {
       let postsData: SocialPost[] = [];
       try {
         postsData = await getPostsByCampaignId(campaignId);
-        console.log(`[Campaign Detail] Loaded ${postsData.length} post(s) for campaign`);
+        console.log(`[Campaign Detail] Loaded ${postsData.length} post(s) for campaign ${campaignId}`);
+        if (postsData.length === 0) {
+          console.warn(`[Campaign Detail] No posts found for campaign ${campaignId}. Campaign posts array:`, campaignData.posts);
+          // Try to verify if posts exist by checking the campaign's posts array
+          if (campaignData.posts && campaignData.posts.length > 0) {
+            console.warn(`[Campaign Detail] Campaign has ${campaignData.posts.length} post ID(s) in posts array, but query returned 0. This might indicate:`);
+            console.warn(`  - Posts don't have campaignId field set`);
+            console.warn(`  - Firestore permission issue`);
+            console.warn(`  - Post IDs in campaign:`, campaignData.posts);
+          }
+        }
       } catch (postsError: any) {
-        console.error(`[Campaign Detail] Error loading posts (non-fatal):`, postsError);
-        // Continue without posts
+        console.error(`[Campaign Detail] Error loading posts:`, postsError);
+        console.error(`[Campaign Detail] Error details:`, {
+          message: postsError.message,
+          code: postsError.code,
+          stack: postsError.stack,
+        });
+        // Try fallback: get all user posts and filter by campaignId client-side
+        if (postsError.message?.includes("Permission denied")) {
+          try {
+            console.log(`[Campaign Detail] Trying fallback: get all user posts and filter client-side`);
+            const { getPostsByBusinessId } = await import("@/lib/firebase/posts");
+            const allBusinessPosts = await getPostsByBusinessId(campaignData.businessId);
+            postsData = allBusinessPosts.filter(p => p.campaignId === campaignId);
+            console.log(`[Campaign Detail] Fallback found ${postsData.length} post(s) for campaign ${campaignId}`);
+          } catch (fallbackError: any) {
+            console.error(`[Campaign Detail] Fallback also failed:`, fallbackError);
+          }
+        }
+        // Continue without posts if all methods fail
       }
 
       // Auto-update campaign status based on dates (don't fail if this fails)

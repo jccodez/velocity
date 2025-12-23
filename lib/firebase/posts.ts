@@ -48,6 +48,7 @@ export const createPost = async (
   // Only include optional fields if they have values
   if (post.campaignId) {
     cleanedPost.campaignId = post.campaignId;
+    console.log(`[createPost] Including campaignId: ${post.campaignId}`);
   }
   if (post.scheduledDate) {
     cleanedPost.scheduledDate = post.scheduledDate;
@@ -119,15 +120,31 @@ export const getPostsByBusinessId = async (
 export const getPostsByCampaignId = async (
   campaignId: string
 ): Promise<SocialPost[]> => {
-  const q = query(
-    collection(db, "posts"),
-    where("campaignId", "==", campaignId)
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as SocialPost[];
+  try {
+    console.log(`[getPostsByCampaignId] Querying posts for campaign ${campaignId}`);
+    const q = query(
+      collection(db, "posts"),
+      where("campaignId", "==", campaignId)
+    );
+    const querySnapshot = await getDocs(q);
+    const posts = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+      } as SocialPost;
+    });
+    console.log(`[getPostsByCampaignId] Found ${posts.length} post(s) for campaign ${campaignId}:`, posts.map(p => ({ id: p.id, content: p.content?.substring(0, 50) + "...", status: p.status })));
+    return posts;
+  } catch (error: any) {
+    console.error(`[getPostsByCampaignId] Error querying posts for campaign ${campaignId}:`, error);
+    if (error.code === 'permission-denied') {
+      console.warn(`[getPostsByCampaignId] Permission denied - this might be a Firestore security rules issue`);
+      // Try to get all user posts and filter client-side as fallback
+      throw new Error(`Permission denied: Unable to query posts by campaign. Please check Firestore security rules.`);
+    }
+    throw error;
+  }
 };
 
 export const getPostById = async (

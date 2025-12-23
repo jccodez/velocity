@@ -236,6 +236,7 @@ export default function NewPostPage() {
       // Include campaignId if selected
       if (formData.campaignId) {
         postData.campaignId = formData.campaignId;
+        console.log(`[New Post] Linking post to campaign ${formData.campaignId}`);
       }
 
       // Include media URLs if any
@@ -243,7 +244,15 @@ export default function NewPostPage() {
         postData.mediaUrls = mediaUrls;
       }
 
+      console.log(`[New Post] Creating post with data:`, {
+        businessId: postData.businessId,
+        platform: postData.platform,
+        campaignId: postData.campaignId || "none",
+        hasContent: !!postData.content,
+      });
+
       const postId = await createPost(postData);
+      console.log(`[New Post] Post created with ID: ${postId}`);
 
       // If post is linked to a campaign, update the campaign's posts array
       if (formData.campaignId) {

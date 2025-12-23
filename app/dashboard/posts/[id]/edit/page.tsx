@@ -126,9 +126,10 @@ export default function EditPostPage() {
       let newStatus: "draft" | "scheduled" | "published" | "failed" = originalPost?.status || "draft";
 
       if (formData.scheduledDate && formData.scheduledTime) {
-        const scheduledDateTime = new Date(
-          `${formData.scheduledDate}T${formData.scheduledTime}`
-        );
+        // Create date in UTC to avoid timezone issues
+        const [year, month, day] = formData.scheduledDate.split('-').map(Number);
+        const [hours, minutes] = formData.scheduledTime.split(':').map(Number);
+        const scheduledDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
         scheduledTimestamp = Timestamp.fromDate(scheduledDateTime);
         // If scheduling, set status to scheduled (unless already published)
         if (originalPost?.status !== "published") {

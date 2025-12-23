@@ -75,8 +75,9 @@ export default function NewPostPage() {
     if (!businessId) return;
     try {
       const data = await getCampaignsByBusinessId(businessId);
-      // Filter to only show active or draft campaigns
-      setCampaigns(data.filter(c => c.status === "active" || c.status === "draft"));
+      // Show all campaigns (not just active/draft) so users can link posts to any campaign
+      setCampaigns(data);
+      console.log(`[New Post] Loaded ${data.length} campaign(s) for business ${businessId}:`, data.map(c => ({ id: c.id, name: c.name, status: c.status })));
     } catch (error) {
       console.error("Error loading campaigns:", error);
     }
@@ -322,7 +323,13 @@ export default function NewPostPage() {
           >
             <option value="">No campaign</option>
             {campaigns
-              .filter(c => c.platforms.includes(formData.platform) || formData.platform === "")
+              .filter(c => {
+                // Show campaign if:
+                // 1. Platform matches, OR
+                // 2. No platform selected yet, OR
+                // 3. Campaign has no platforms (shouldn't happen but be safe)
+                return c.platforms.length === 0 || formData.platform === "" || c.platforms.includes(formData.platform);
+              })
               .map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>
                   {campaign.name} {campaign.status !== "active" ? `(${campaign.status})` : ""}
@@ -333,8 +340,8 @@ export default function NewPostPage() {
             {!formData.businessId 
               ? "Select a business first to see campaigns"
               : campaigns.length === 0 
-              ? "No active or draft campaigns for this business"
-              : "Only campaigns matching the selected platform are shown"}
+              ? "No campaigns for this business. Create one in the Campaigns section."
+              : `Showing ${campaigns.filter(c => c.platforms.length === 0 || formData.platform === "" || c.platforms.includes(formData.platform)).length} of ${campaigns.length} campaign(s)${formData.platform ? ` matching ${formData.platform}` : ""}`}
           </p>
         </div>
 

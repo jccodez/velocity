@@ -22,13 +22,16 @@ export default function CampaignsPage() {
     if (!user) return;
     try {
       const businesses = await getBusinessesByUserId(user.uid);
+      console.log(`[Campaigns Page] Found ${businesses.length} business(es) for user ${user.uid}`);
       let allCampaigns: Campaign[] = [];
       for (const business of businesses) {
         if (business.id) {
           const businessCampaigns = await getCampaignsByBusinessId(business.id);
+          console.log(`[Campaigns Page] Business ${business.name} (${business.id}): ${businessCampaigns.length} campaign(s)`, businessCampaigns.map(c => ({ id: c.id, name: c.name, status: c.status })));
           allCampaigns = [...allCampaigns, ...businessCampaigns];
         }
       }
+      console.log(`[Campaigns Page] Total campaigns loaded: ${allCampaigns.length}`);
       setCampaigns(allCampaigns);
     } catch (error) {
       console.error("Error loading campaigns:", error);

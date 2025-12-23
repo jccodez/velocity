@@ -9,6 +9,13 @@ import { NextRequest, NextResponse } from "next/server";
  * Note: For security, you may want to add authentication in production
  */
 export async function GET(request: NextRequest) {
+  // Log that the route was called
+  console.log(`[Publish Scheduled] Route called at ${new Date().toISOString()}`);
+  console.log(`[Publish Scheduled] Request headers:`, {
+    'user-agent': request.headers.get('user-agent'),
+    'x-vercel-cron': request.headers.get('x-vercel-cron'),
+  });
+  
   // Optional: Add a secret token check for security
   // const authHeader = request.headers.get('authorization');
   // const cronSecret = process.env.CRON_SECRET;

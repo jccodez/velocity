@@ -282,36 +282,39 @@ export default function PostsPage() {
               )}
               
               {/* Analytics Display */}
-              {post.status === "published" && post.id && postAnalytics[post.id] && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs font-medium text-blue-800 mb-2">Performance</p>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="flex items-center gap-1 text-red-600">
-                      <Heart className="w-4 h-4" />
-                      {postAnalytics[post.id].likes || 0}
-                    </span>
-                    <span className="flex items-center gap-1 text-blue-600">
-                      <MessageCircle className="w-4 h-4" />
-                      {postAnalytics[post.id].comments || 0}
-                    </span>
-                    <span className="flex items-center gap-1 text-green-600">
-                      <Share2 className="w-4 h-4" />
-                      {postAnalytics[post.id].shares || 0}
-                    </span>
-                    {postAnalytics[post.id].impressions && (
-                      <span className="flex items-center gap-1 text-purple-600">
-                        <EyeIcon className="w-4 h-4" />
-                        {postAnalytics[post.id].impressions.toLocaleString()}
+              {post.status === "published" && post.id && postAnalytics[post.id] && (() => {
+                const analytics = postAnalytics[post.id];
+                return (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-xs font-medium text-blue-800 mb-2">Performance</p>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="flex items-center gap-1 text-red-600">
+                        <Heart className="w-4 h-4" />
+                        {analytics.likes || 0}
                       </span>
-                    )}
-                    {postAnalytics[post.id].engagement && (
-                      <span className="ml-auto text-xs text-gray-600">
-                        Engagement: {postAnalytics[post.id].engagement!.toFixed(2)}%
+                      <span className="flex items-center gap-1 text-blue-600">
+                        <MessageCircle className="w-4 h-4" />
+                        {analytics.comments || 0}
                       </span>
-                    )}
+                      <span className="flex items-center gap-1 text-green-600">
+                        <Share2 className="w-4 h-4" />
+                        {analytics.shares || 0}
+                      </span>
+                      {analytics.impressions && (
+                        <span className="flex items-center gap-1 text-purple-600">
+                          <EyeIcon className="w-4 h-4" />
+                          {analytics.impressions.toLocaleString()}
+                        </span>
+                      )}
+                      {analytics.engagement && (
+                        <span className="ml-auto text-xs text-gray-600">
+                          Engagement: {analytics.engagement.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               
               <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
                 {post.status !== "published" && (

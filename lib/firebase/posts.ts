@@ -26,6 +26,7 @@ export interface SocialPost {
   mediaUrls?: string[]; // URLs to images/videos
   aiGenerated: boolean;
   userId: string;
+  facebookPostId?: string; // Facebook post ID returned when published
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

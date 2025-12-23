@@ -205,8 +205,15 @@ async function publishToFacebook(
       };
     }
 
-    console.log(`[Publish Now] Facebook API success. Post ID: ${data.id || "unknown"}`);
-    return { success: true, facebookPostId: data.id };
+        console.log(`[Publish Now] Facebook API success. Post ID: ${data.id || "unknown"}`);
+        
+        // Trigger analytics fetch in background (don't wait for it)
+        if (data.id) {
+          // Note: We'll need postId and businessId from the client
+          // For now, just return the facebookPostId and let client trigger analytics fetch
+        }
+        
+        return { success: true, facebookPostId: data.id };
   } catch (error: any) {
     console.error(`[Publish Now] Network error publishing to Facebook:`, error);
     return {

@@ -9,8 +9,9 @@ import { getCampaignsByBusinessId, Campaign } from "@/lib/firebase/campaigns";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
-import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Upload, Wand2, X, Loader2 } from "lucide-react";
+import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Upload, Wand2, X, Loader2, Eye } from "lucide-react";
 import Link from "next/link";
+import PostPreview from "@/components/posts/PostPreview";
 
 const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
 
@@ -436,6 +437,23 @@ export default function NewPostPage() {
             {formData.content.length} characters
           </p>
         </div>
+
+        {/* Post Preview */}
+        {(formData.content || mediaUrls.length > 0) && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              Preview
+            </label>
+            <PostPreview
+              post={{
+                content: formData.content,
+                platform: formData.platform,
+                mediaUrls: mediaUrls,
+              }}
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

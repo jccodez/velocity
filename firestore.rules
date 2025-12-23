@@ -117,6 +117,30 @@ service cloud.firestore {
       // Allow update/delete if user owns the business
       allow update, delete: if ownsBusiness();
     }
+    
+    // Post analytics collection
+    match /post_analytics/{analyticsId} {
+      // Helper to check if user owns the business that the analytics belongs to
+      function ownsAnalyticsBusiness() {
+        return isAuthenticated() &&
+               resource.data.businessId != null &&
+               exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+               get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.userId == request.auth.uid;
+      }
+      
+      // Allow read if user owns the business
+      allow read: if ownsAnalyticsBusiness();
+      
+      // Allow create/update if user owns the business
+      allow create: if ownsAnalyticsBusiness() &&
+                    request.resource.data.businessId == resource.data.businessId;
+      
+      allow update: if ownsAnalyticsBusiness() &&
+                    request.resource.data.businessId == resource.data.businessId;
+      
+      // Allow delete if user owns the business
+      allow delete: if ownsAnalyticsBusiness();
+    }
   }
 }
 

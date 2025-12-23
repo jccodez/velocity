@@ -10,8 +10,9 @@ import { getCampaignsByBusinessId, Campaign, updateCampaign, getCampaignById } f
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
-import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2, Send, Upload, Wand2, X } from "lucide-react";
+import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2, Send, Upload, Wand2, X, Eye } from "lucide-react";
 import Link from "next/link";
+import PostPreview from "@/components/posts/PostPreview";
 
 const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
 
@@ -379,7 +380,32 @@ export default function EditPostPage() {
       await updatePost(postId, {
         status: "published",
         publishedDate: Timestamp.now(),
+        facebookPostId: data.facebookPostId, // Store Facebook post ID for analytics
       });
+
+      // Fetch analytics in background (don't wait for it)
+      if (data.facebookPostId && originalPost.businessId) {
+        try {
+          const facebookConnection = await getFacebookConnection(originalPost.businessId);
+          if (facebookConnection?.accessToken && facebookConnection?.pageId) {
+            // Trigger analytics fetch (fire and forget)
+            fetch("/api/analytics/fetch-facebook", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                postId: postId,
+                facebookPostId: data.facebookPostId,
+                accessToken: facebookConnection.accessToken,
+                pageId: facebookConnection.pageId,
+                businessId: originalPost.businessId,
+              }),
+            }).catch(err => console.error("Error fetching analytics:", err));
+          }
+        } catch (analyticsError) {
+          console.error("Error triggering analytics fetch:", analyticsError);
+          // Don't fail the publish if analytics fails
+        }
+      }
 
       // Redirect to posts page
       router.push("/dashboard/posts");
@@ -565,6 +591,23 @@ export default function EditPostPage() {
             {formData.content.length} characters
           </p>
         </div>
+
+        {/* Post Preview */}
+        {(formData.content || mediaUrls.length > 0) && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              Preview
+            </label>
+            <PostPreview
+              post={{
+                content: formData.content,
+                platform: formData.platform,
+                mediaUrls: mediaUrls,
+              }}
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

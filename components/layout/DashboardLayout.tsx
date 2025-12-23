@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -49,6 +50,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Campaigns", href: "/dashboard/campaigns", icon: Briefcase },
     { name: "Posts", href: "/dashboard/posts", icon: FileText },
     { name: "Schedule", href: "/dashboard/schedule", icon: Calendar },
+    { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
     { name: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 

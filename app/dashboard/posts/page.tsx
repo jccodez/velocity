@@ -4,9 +4,10 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { getPostsByBusinessId, SocialPost, updatePost, getPostById } from "@/lib/firebase/posts";
 import { getFacebookConnection } from "@/lib/firebase/facebook";
+import { getAnalyticsByPostId, PostAnalytics } from "@/lib/firebase/analytics";
 import { Timestamp } from "firebase/firestore";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
-import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit, Send, Loader2 } from "lucide-react";
+import { Plus, FileText, Sparkles, Calendar, CheckCircle, Edit, Send, Loader2, Heart, MessageCircle, Share2, Eye as EyeIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function PostsPage() {
@@ -14,6 +15,7 @@ export default function PostsPage() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishingPostId, setPublishingPostId] = useState<string | null>(null);
+  const [postAnalytics, setPostAnalytics] = useState<Record<string, PostAnalytics>>({});
 
   useEffect(() => {
     if (user) {
@@ -38,6 +40,20 @@ export default function PostsPage() {
         return b.createdAt.toMillis() - a.createdAt.toMillis();
       });
       setPosts(allPosts);
+
+      // Load analytics for published posts
+      const analyticsMap: Record<string, PostAnalytics> = {};
+      for (const post of allPosts.filter(p => p.status === "published" && p.id)) {
+        try {
+          const analytics = await getAnalyticsByPostId(post.id!);
+          if (analytics) {
+            analyticsMap[post.id!] = analytics;
+          }
+        } catch (error) {
+          console.error(`Error loading analytics for post ${post.id}:`, error);
+        }
+      }
+      setPostAnalytics(analyticsMap);
     } catch (error) {
       console.error("Error loading posts:", error);
     } finally {
@@ -118,7 +134,32 @@ export default function PostsPage() {
       await updatePost(postId, {
         status: "published",
         publishedDate: Timestamp.now(),
+        facebookPostId: data.facebookPostId, // Store Facebook post ID for analytics
       });
+
+      // Fetch analytics in background (don't wait for it)
+      if (data.facebookPostId && post.businessId) {
+        try {
+          const facebookConnection = await getFacebookConnection(post.businessId);
+          if (facebookConnection?.accessToken && facebookConnection?.pageId) {
+            // Trigger analytics fetch (fire and forget)
+            fetch("/api/analytics/fetch-facebook", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                postId: postId,
+                facebookPostId: data.facebookPostId,
+                accessToken: facebookConnection.accessToken,
+                pageId: facebookConnection.pageId,
+                businessId: post.businessId,
+              }),
+            }).catch(err => console.error("Error fetching analytics:", err));
+          }
+        } catch (analyticsError) {
+          console.error("Error triggering analytics fetch:", analyticsError);
+          // Don't fail the publish if analytics fails
+        }
+      }
 
       // Reload posts to show updated status
       await loadPosts();

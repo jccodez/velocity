@@ -193,7 +193,8 @@ export async function GET(request: NextRequest) {
         const publishResult = await publishToFacebook(
           post.content,
           pageId,
-          facebookConnection.accessToken
+          facebookConnection.accessToken,
+          post.mediaUrls || []
         );
 
         if (publishResult.success) {
@@ -281,8 +282,9 @@ export async function GET(request: NextRequest) {
 async function publishToFacebook(
   message: string,
   pageId: string,
-  accessToken: string
-): Promise<{ success: boolean; error?: string; postId?: string }> {
+  accessToken: string,
+  mediaUrls: string[] = []
+): Promise<{ success: boolean; error?: string; facebookPostId?: string }> {
   try {
     if (!message || !message.trim()) {
       return {
@@ -305,6 +307,98 @@ async function publishToFacebook(
       };
     }
 
+    // If there are images, use the photos endpoint with attached_media
+    if (mediaUrls.length > 0) {
+      // First, upload each image to Facebook and get their media IDs
+      const mediaIds: string[] = [];
+      
+      for (const imageUrl of mediaUrls) {
+        try {
+          // Upload photo to Facebook and get media ID
+          const photoResponse = await fetch(
+            `https://graph.facebook.com/v18.0/${pageId}/photos?url=${encodeURIComponent(imageUrl)}&published=false&access_token=${accessToken}`,
+            {
+              method: "POST",
+            }
+          );
+
+          const photoData = await photoResponse.json();
+
+          if (!photoResponse.ok || photoData.error) {
+            console.error(`[Publish Scheduled] Failed to upload image ${imageUrl}:`, photoData.error);
+            // Continue with other images
+            continue;
+          }
+
+          if (photoData.id) {
+            mediaIds.push(photoData.id);
+          }
+        } catch (error) {
+          console.error(`[Publish Scheduled] Error uploading image ${imageUrl}:`, error);
+          // Continue with other images
+        }
+      }
+
+      // If we have media IDs, post with attached media
+      if (mediaIds.length > 0) {
+        const url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+        console.log(`[Publish Scheduled] Calling Facebook API with ${mediaIds.length} image(s): ${url}`);
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: message.trim(),
+            attached_media: mediaIds.map((id) => ({ media_fbid: id })),
+            access_token: accessToken,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+          let errorMsg = "Unknown Facebook API error";
+          
+          if (data.error) {
+            const error = data.error;
+            errorMsg = `${error.message || "Facebook API error"}`;
+            if (error.type) {
+              errorMsg += ` (Type: ${error.type})`;
+            }
+            if (error.code) {
+              errorMsg += ` (Code: ${error.code})`;
+            }
+            if (error.error_subcode) {
+              errorMsg += ` (Subcode: ${error.error_subcode})`;
+            }
+            if (error.fbtrace_id) {
+              errorMsg += ` (Trace ID: ${error.fbtrace_id})`;
+            }
+            console.error(`[Publish Scheduled] Facebook API error details:`, {
+              type: error.type,
+              code: error.code,
+              subcode: error.error_subcode,
+              message: error.message,
+              fbtrace_id: error.fbtrace_id,
+            });
+          } else {
+            errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+          }
+          
+          return {
+            success: false,
+            error: errorMsg,
+          };
+        }
+
+        console.log(`[Publish Scheduled] Facebook API success with images. Post ID: ${data.id || "unknown"}`);
+        return { success: true, facebookPostId: data.id };
+      }
+    }
+
+    // Fallback to text-only post (original behavior)
     const url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
     console.log(`[Publish Scheduled] Calling Facebook API: ${url}`);
     console.log(`[Publish Scheduled] Request details:`, {

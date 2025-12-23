@@ -97,6 +97,7 @@ export default function PostsPage() {
           platform: post.platform,
           pageId: pageId,
           accessToken: facebookConnection.accessToken,
+          mediaUrls: post.mediaUrls || [],
         }),
       });
 

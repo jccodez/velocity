@@ -9,7 +9,7 @@ import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
-import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2, Send } from "lucide-react";
+import { Sparkles, ArrowLeft, Calendar, Image as ImageIcon, Loader2, Send, Upload, Wand2, X } from "lucide-react";
 import Link from "next/link";
 
 const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
@@ -34,6 +34,10 @@ export default function EditPostPage() {
   const [isAiGenerated, setIsAiGenerated] = useState(false);
   const [originalPost, setOriginalPost] = useState<SocialPost | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState("");
 
   useEffect(() => {
     if (user && postId) {
@@ -77,6 +81,7 @@ export default function EditPostPage() {
         scheduledDate: scheduledDateStr,
         scheduledTime: scheduledTimeStr,
       });
+      setMediaUrls(post.mediaUrls || []);
     } catch (error) {
       console.error("Error loading post:", error);
       alert("Failed to load post");
@@ -114,6 +119,98 @@ export default function EditPostPage() {
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("userId", user.uid);
+
+      const response = await fetch("/api/images/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to upload image");
+      }
+
+      setMediaUrls((prev) => [...prev, data.url]);
+      alert("Image uploaded successfully!");
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      alert(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!imagePrompt.trim()) {
+      alert("Please enter a prompt for the image");
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      const response = await fetch("/api/images/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          size: "1024x1024",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to generate image");
+      }
+
+      // Download the image and upload to Firebase Storage
+      const imageResponse = await fetch(data.url);
+      const blob = await imageResponse.blob();
+      const file = new File([blob], "ai-generated.png", { type: "image/png" });
+
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("userId", user?.uid || "");
+
+      const uploadResponse = await fetch("/api/images/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadData = await uploadResponse.json();
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadData.error || "Failed to upload generated image");
+      }
+
+      setMediaUrls((prev) => [...prev, uploadData.url]);
+      setImagePrompt("");
+      alert("Image generated and uploaded successfully!");
+    } catch (error: any) {
+      console.error("Error generating image:", error);
+      alert(error.message || "Failed to generate image");
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setMediaUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -162,6 +259,14 @@ export default function EditPostPage() {
         // Both date and time are cleared, so we'll need to remove scheduledDate
         // We'll handle this by passing a special marker that updatePost will recognize
         (updates as any).__deleteScheduledDate = true;
+      }
+
+      // Include media URLs
+      if (mediaUrls.length > 0) {
+        updates.mediaUrls = mediaUrls;
+      } else {
+        // If no media URLs, explicitly set to empty array to clear existing ones
+        updates.mediaUrls = [];
       }
 
       await updatePost(postId, updates);
@@ -214,6 +319,7 @@ export default function EditPostPage() {
           platform: formData.platform || originalPost.platform,
           pageId: pageId,
           accessToken: facebookConnection.accessToken,
+          mediaUrls: mediaUrls.length > 0 ? mediaUrls : (originalPost.mediaUrls || []),
         }),
       });
 
@@ -371,6 +477,98 @@ export default function EditPostPage() {
           />
           <p className="text-xs text-gray-500 mt-2">
             {formData.content.length} characters
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Images (Optional)
+          </label>
+          <div className="space-y-4">
+            {/* Image Upload */}
+            <div className="flex gap-2">
+              <label className="flex-1 cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                  className="hidden"
+                />
+                <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition-colors disabled:opacity-50">
+                  {uploadingImage ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      <span className="text-gray-600">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5 text-gray-400" />
+                      <span className="text-gray-600">Upload Image</span>
+                    </>
+                  )}
+                </div>
+              </label>
+            </div>
+
+            {/* AI Image Generation */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                placeholder="Describe the image you want to generate..."
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && !generatingImage) {
+                    handleGenerateImage();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleGenerateImage}
+                disabled={generatingImage || !imagePrompt.trim()}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+              >
+                {generatingImage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4" />
+                    Generate
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Display Uploaded Images */}
+            {mediaUrls.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                {mediaUrls.map((url, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Upload ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index)}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Upload images or generate them with AI. Images will be included when publishing to social media.
           </p>
         </div>
 

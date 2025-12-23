@@ -469,7 +469,7 @@ async function publishToFacebook(
     }
 
     console.log(`[Publish Scheduled] Facebook API success. Post ID: ${data.id || "unknown"}`);
-    return { success: true, postId: data.id };
+    return { success: true, facebookPostId: data.id };
   } catch (error: any) {
     console.error(`[Publish Scheduled] Network error publishing to Facebook:`, error);
     return {

@@ -57,15 +57,53 @@ export const deleteCampaign = async (campaignId: string): Promise<void> => {
 export const getCampaignsByBusinessId = async (
   businessId: string
 ): Promise<Campaign[]> => {
-  const q = query(
-    collection(db, "campaigns"),
-    where("businessId", "==", businessId)
-  );
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Campaign[];
+  try {
+    const q = query(
+      collection(db, "campaigns"),
+      where("businessId", "==", businessId)
+    );
+    const querySnapshot = await getDocs(q);
+    const campaigns = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Campaign[];
+    console.log(`[getCampaignsByBusinessId] Found ${campaigns.length} campaign(s) for business ${businessId}`);
+    return campaigns;
+  } catch (error: any) {
+    console.error(`[getCampaignsByBusinessId] Error querying campaigns for business ${businessId}:`, error);
+    // If there's a permission error, try to get all user campaigns and filter client-side
+    if (error.code === 'permission-denied') {
+      console.warn(`[getCampaignsByBusinessId] Permission denied, trying alternative query`);
+      // This won't work directly, but we can try to get campaigns by userId if we have auth
+      throw new Error(`Permission denied: Unable to read campaigns. Please check Firestore security rules.`);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Get all campaigns for a user (by userId)
+ * Useful as a fallback if businessId query fails
+ */
+export const getCampaignsByUserId = async (
+  userId: string
+): Promise<Campaign[]> => {
+  try {
+    const q = query(
+      collection(db, "campaigns"),
+      where("userId", "==", userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const campaigns = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Campaign[];
+    console.log(`[getCampaignsByUserId] Found ${campaigns.length} campaign(s) for user ${userId}`);
+    return campaigns;
+  } catch (error: any) {
+    console.error(`[getCampaignsByUserId] Error querying campaigns for user ${userId}:`, error);
+    throw error;
+  }
 };
 
 export const getCampaignById = async (

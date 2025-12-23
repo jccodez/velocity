@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useEffect, useState } from "react";
-import { getCampaignsByBusinessId, Campaign } from "@/lib/firebase/campaigns";
+import { getCampaignsByBusinessId, getCampaignsByUserId, Campaign } from "@/lib/firebase/campaigns";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
 import { Plus, Briefcase, Trash2, Edit, Play, Pause } from "lucide-react";
 import Link from "next/link";
@@ -21,20 +21,34 @@ export default function CampaignsPage() {
   const loadCampaigns = async () => {
     if (!user) return;
     try {
-      const businesses = await getBusinessesByUserId(user.uid);
-      console.log(`[Campaigns Page] Found ${businesses.length} business(es) for user ${user.uid}`);
-      let allCampaigns: Campaign[] = [];
-      for (const business of businesses) {
-        if (business.id) {
-          const businessCampaigns = await getCampaignsByBusinessId(business.id);
-          console.log(`[Campaigns Page] Business ${business.name} (${business.id}): ${businessCampaigns.length} campaign(s)`, businessCampaigns.map(c => ({ id: c.id, name: c.name, status: c.status })));
-          allCampaigns = [...allCampaigns, ...businessCampaigns];
+      // Try to get campaigns by userId first (more reliable)
+      try {
+        const allUserCampaigns = await getCampaignsByUserId(user.uid);
+        console.log(`[Campaigns Page] Loaded ${allUserCampaigns.length} campaign(s) for user ${user.uid}:`, allUserCampaigns.map(c => ({ id: c.id, name: c.name, status: c.status, businessId: c.businessId })));
+        setCampaigns(allUserCampaigns);
+      } catch (userIdError: any) {
+        console.warn(`[Campaigns Page] userId query failed, trying businessId query:`, userIdError);
+        // Fallback to businessId query
+        const businesses = await getBusinessesByUserId(user.uid);
+        console.log(`[Campaigns Page] Found ${businesses.length} business(es) for user ${user.uid}`);
+        let allCampaigns: Campaign[] = [];
+        for (const business of businesses) {
+          if (business.id) {
+            try {
+              const businessCampaigns = await getCampaignsByBusinessId(business.id);
+              console.log(`[Campaigns Page] Business ${business.name} (${business.id}): ${businessCampaigns.length} campaign(s)`, businessCampaigns.map(c => ({ id: c.id, name: c.name, status: c.status })));
+              allCampaigns = [...allCampaigns, ...businessCampaigns];
+            } catch (businessError: any) {
+              console.error(`[Campaigns Page] Error loading campaigns for business ${business.id}:`, businessError);
+            }
+          }
         }
+        console.log(`[Campaigns Page] Total campaigns loaded: ${allCampaigns.length}`);
+        setCampaigns(allCampaigns);
       }
-      console.log(`[Campaigns Page] Total campaigns loaded: ${allCampaigns.length}`);
-      setCampaigns(allCampaigns);
     } catch (error) {
       console.error("Error loading campaigns:", error);
+      alert("Failed to load campaigns. Please check the browser console for details.");
     } finally {
       setLoading(false);
     }

@@ -72,14 +72,27 @@ export default function NewPostPage() {
   };
 
   const loadCampaigns = async (businessId: string) => {
-    if (!businessId) return;
+    if (!businessId || !user) return;
     try {
       const data = await getCampaignsByBusinessId(businessId);
       // Show all campaigns (not just active/draft) so users can link posts to any campaign
       setCampaigns(data);
-      console.log(`[New Post] Loaded ${data.length} campaign(s) for business ${businessId}:`, data.map(c => ({ id: c.id, name: c.name, status: c.status })));
-    } catch (error) {
+      console.log(`[New Post] Loaded ${data.length} campaign(s) for business ${businessId}:`, data.map(c => ({ id: c.id, name: c.name, status: c.status, platforms: c.platforms })));
+    } catch (error: any) {
       console.error("Error loading campaigns:", error);
+      // Try fallback: get all user campaigns and filter by businessId
+      if (error.message?.includes("Permission denied")) {
+        try {
+          const { getCampaignsByUserId } = await import("@/lib/firebase/campaigns");
+          const allUserCampaigns = await getCampaignsByUserId(user.uid);
+          const filteredCampaigns = allUserCampaigns.filter(c => c.businessId === businessId);
+          setCampaigns(filteredCampaigns);
+          console.log(`[New Post] Fallback: Loaded ${filteredCampaigns.length} campaign(s) for business ${businessId} via userId query`);
+        } catch (fallbackError) {
+          console.error("Fallback query also failed:", fallbackError);
+          alert("Unable to load campaigns. Please check your Firestore security rules.");
+        }
+      }
     }
   };
 

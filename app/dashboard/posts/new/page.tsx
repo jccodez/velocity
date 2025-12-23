@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { createPost } from "@/lib/firebase/posts";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
+import { getCampaignsByBusinessId, Campaign } from "@/lib/firebase/campaigns";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
@@ -16,16 +17,19 @@ const PLATFORMS = ["facebook", "instagram", "twitter", "linkedin"];
 export default function NewPostPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [isAiGenerated, setIsAiGenerated] = useState(false);
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const [imagePrompt, setImagePrompt] = useState("");
   const [formData, setFormData] = useState({
     businessId: "",
+    campaignId: "",
     platform: "facebook",
     content: "",
     topic: "",
@@ -45,10 +49,36 @@ export default function NewPostPage() {
       const data = await getBusinessesByUserId(user.uid);
       setBusinesses(data);
       if (data.length > 0) {
-        setFormData((prev) => ({ ...prev, businessId: data[0].id || "" }));
+        const firstBusinessId = data[0].id || "";
+        setFormData((prev) => ({ ...prev, businessId: firstBusinessId }));
+        // Load campaigns for the first business
+        await loadCampaigns(firstBusinessId);
+        
+        // Check if campaignId is in URL params
+        const campaignIdParam = searchParams.get("campaignId");
+        if (campaignIdParam) {
+          // Find the campaign and set it if it belongs to the business
+          const campaignsData = await getCampaignsByBusinessId(firstBusinessId);
+          const campaign = campaignsData.find(c => c.id === campaignIdParam);
+          if (campaign) {
+            setFormData(prev => ({ ...prev, campaignId: campaignIdParam, businessId: campaign.businessId }));
+            await loadCampaigns(campaign.businessId);
+          }
+        }
       }
     } catch (error) {
       console.error("Error loading businesses:", error);
+    }
+  };
+
+  const loadCampaigns = async (businessId: string) => {
+    if (!businessId) return;
+    try {
+      const data = await getCampaignsByBusinessId(businessId);
+      // Filter to only show active or draft campaigns
+      setCampaigns(data.filter(c => c.status === "active" || c.status === "draft"));
+    } catch (error) {
+      console.error("Error loading campaigns:", error);
     }
   };
 
@@ -189,12 +219,32 @@ export default function NewPostPage() {
         postData.scheduledDate = scheduledTimestamp;
       }
 
+      // Include campaignId if selected
+      if (formData.campaignId) {
+        postData.campaignId = formData.campaignId;
+      }
+
       // Include media URLs if any
       if (mediaUrls.length > 0) {
         postData.mediaUrls = mediaUrls;
       }
 
-      await createPost(postData);
+      const postId = await createPost(postData);
+
+      // If post is linked to a campaign, update the campaign's posts array
+      if (formData.campaignId) {
+        try {
+          const { updateCampaign, getCampaignById } = await import("@/lib/firebase/campaigns");
+          const campaign = await getCampaignById(formData.campaignId);
+          if (campaign && campaign.id) {
+            const updatedPosts = [...(campaign.posts || []), postId];
+            await updateCampaign(campaign.id, { posts: updatedPosts });
+          }
+        } catch (error) {
+          console.error("Error updating campaign with post:", error);
+          // Don't fail the post creation if campaign update fails
+        }
+      }
       router.push("/dashboard/posts");
     } catch (error) {
       console.error("Error creating post:", error);
@@ -244,7 +294,11 @@ export default function NewPostPage() {
           <select
             required
             value={formData.businessId}
-            onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+            onChange={async (e) => {
+              const newBusinessId = e.target.value;
+              setFormData({ ...formData, businessId: newBusinessId, campaignId: "" });
+              await loadCampaigns(newBusinessId);
+            }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
           >
             <option value="">Select a business</option>
@@ -258,12 +312,48 @@ export default function NewPostPage() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
+            Campaign (Optional)
+          </label>
+          <select
+            value={formData.campaignId}
+            onChange={(e) => setFormData({ ...formData, campaignId: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            disabled={!formData.businessId || campaigns.length === 0}
+          >
+            <option value="">No campaign</option>
+            {campaigns
+              .filter(c => c.platforms.includes(formData.platform) || formData.platform === "")
+              .map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name} {campaign.status !== "active" ? `(${campaign.status})` : ""}
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {!formData.businessId 
+              ? "Select a business first to see campaigns"
+              : campaigns.length === 0 
+              ? "No active or draft campaigns for this business"
+              : "Only campaigns matching the selected platform are shown"}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Platform *
           </label>
           <select
             required
             value={formData.platform}
-            onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+            onChange={(e) => {
+              const newPlatform = e.target.value;
+              setFormData({ ...formData, platform: newPlatform });
+              // Clear campaign if it doesn't support the new platform
+              const selectedCampaign = campaigns.find(c => c.id === formData.campaignId);
+              if (selectedCampaign && !selectedCampaign.platforms.includes(newPlatform)) {
+                setFormData(prev => ({ ...prev, platform: newPlatform, campaignId: "" }));
+              }
+            }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none capitalize"
           >
             {PLATFORMS.map((platform) => (

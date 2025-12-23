@@ -3,6 +3,10 @@
     {
       "path": "/api/posts/publish-scheduled",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/campaigns/update-status",
+      "schedule": "0 * * * *"
     }
   ]
 }

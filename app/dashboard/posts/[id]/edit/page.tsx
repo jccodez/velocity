@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { getPostById, updatePost, SocialPost } from "@/lib/firebase/posts";
 import { getFacebookConnection } from "@/lib/firebase/facebook";
 import { getBusinessesByUserId } from "@/lib/firebase/businesses";
+import { getCampaignsByBusinessId, Campaign, updateCampaign, getCampaignById } from "@/lib/firebase/campaigns";
 import { generatePostContent } from "@/lib/ai/contentGenerator";
 import { Business } from "@/lib/firebase/businesses";
 import { Timestamp } from "firebase/firestore";
@@ -23,8 +24,10 @@ export default function EditPostPage() {
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [formData, setFormData] = useState({
     businessId: "",
+    campaignId: "",
     platform: "facebook",
     content: "",
     topic: "",
@@ -75,6 +78,7 @@ export default function EditPostPage() {
 
       setFormData({
         businessId: post.businessId || "",
+        campaignId: post.campaignId || "",
         platform: post.platform || "facebook",
         content: post.content || "",
         topic: "", // Topic is not stored, it's only used for generation
@@ -82,12 +86,28 @@ export default function EditPostPage() {
         scheduledTime: scheduledTimeStr,
       });
       setMediaUrls(post.mediaUrls || []);
+      
+      // Load campaigns for the business
+      if (post.businessId) {
+        await loadCampaigns(post.businessId);
+      }
     } catch (error) {
       console.error("Error loading post:", error);
       alert("Failed to load post");
       router.push("/dashboard/posts");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCampaigns = async (businessId: string) => {
+    if (!businessId) return;
+    try {
+      const data = await getCampaignsByBusinessId(businessId);
+      // Filter to only show active or draft campaigns
+      setCampaigns(data.filter(c => c.status === "active" || c.status === "draft"));
+    } catch (error) {
+      console.error("Error loading campaigns:", error);
     }
   };
 
@@ -243,6 +263,14 @@ export default function EditPostPage() {
         (updates as any).__deleteScheduledDate = true;
       }
 
+      // Include campaignId
+      if (formData.campaignId) {
+        updates.campaignId = formData.campaignId;
+      } else if (originalPost?.campaignId) {
+        // If campaign was removed, clear it
+        updates.campaignId = undefined;
+      }
+
       // Include media URLs
       if (mediaUrls.length > 0) {
         updates.mediaUrls = mediaUrls;
@@ -252,6 +280,35 @@ export default function EditPostPage() {
       }
 
       await updatePost(postId, updates);
+
+      // Update campaign posts array if campaign changed
+      const oldCampaignId = originalPost?.campaignId;
+      const newCampaignId = formData.campaignId || undefined;
+      
+      if (oldCampaignId !== newCampaignId) {
+        try {
+          // Remove from old campaign if it existed
+          if (oldCampaignId) {
+            const oldCampaign = await getCampaignById(oldCampaignId);
+            if (oldCampaign && oldCampaign.id) {
+              const updatedPosts = (oldCampaign.posts || []).filter(id => id !== postId);
+              await updateCampaign(oldCampaign.id, { posts: updatedPosts });
+            }
+          }
+          
+          // Add to new campaign if selected
+          if (newCampaignId) {
+            const newCampaign = await getCampaignById(newCampaignId);
+            if (newCampaign && newCampaign.id) {
+              const updatedPosts = [...(newCampaign.posts || []), postId];
+              await updateCampaign(newCampaign.id, { posts: updatedPosts });
+            }
+          }
+        } catch (error) {
+          console.error("Error updating campaign with post:", error);
+          // Don't fail the post update if campaign update fails
+        }
+      }
       router.push("/dashboard/posts");
     } catch (error) {
       console.error("Error updating post:", error);
@@ -388,7 +445,11 @@ export default function EditPostPage() {
           <select
             required
             value={formData.businessId}
-            onChange={(e) => setFormData({ ...formData, businessId: e.target.value })}
+            onChange={async (e) => {
+              const newBusinessId = e.target.value;
+              setFormData({ ...formData, businessId: newBusinessId, campaignId: "" });
+              await loadCampaigns(newBusinessId);
+            }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
           >
             <option value="">Select a business</option>
@@ -402,12 +463,48 @@ export default function EditPostPage() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
+            Campaign (Optional)
+          </label>
+          <select
+            value={formData.campaignId}
+            onChange={(e) => setFormData({ ...formData, campaignId: e.target.value })}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            disabled={!formData.businessId || campaigns.length === 0}
+          >
+            <option value="">No campaign</option>
+            {campaigns
+              .filter(c => c.platforms.includes(formData.platform) || formData.platform === "")
+              .map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name} {campaign.status !== "active" ? `(${campaign.status})` : ""}
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            {!formData.businessId 
+              ? "Select a business first to see campaigns"
+              : campaigns.length === 0 
+              ? "No active or draft campaigns for this business"
+              : "Only campaigns matching the selected platform are shown"}
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Platform *
           </label>
           <select
             required
             value={formData.platform}
-            onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
+            onChange={(e) => {
+              const newPlatform = e.target.value;
+              setFormData({ ...formData, platform: newPlatform });
+              // Clear campaign if it doesn't support the new platform
+              const selectedCampaign = campaigns.find(c => c.id === formData.campaignId);
+              if (selectedCampaign && !selectedCampaign.platforms.includes(newPlatform)) {
+                setFormData(prev => ({ ...prev, platform: newPlatform, campaignId: "" }));
+              }
+            }}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none capitalize"
           >
             {PLATFORMS.map((platform) => (

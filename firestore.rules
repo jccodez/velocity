@@ -120,7 +120,7 @@ service cloud.firestore {
     
     // Post analytics collection
     match /post_analytics/{analyticsId} {
-      // Helper to check if user owns the business that the analytics belongs to
+      // Helper to check if user owns the business (for existing documents)
       function ownsAnalyticsBusiness() {
         return isAuthenticated() &&
                resource.data.businessId != null &&
@@ -128,13 +128,24 @@ service cloud.firestore {
                get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.userId == request.auth.uid;
       }
       
-      // Allow read if user owns the business
-      allow read: if ownsAnalyticsBusiness();
+      // Helper to check if user owns the business (for new documents)
+      function ownsAnalyticsBusinessForCreate() {
+        return isAuthenticated() &&
+               request.resource.data.businessId != null &&
+               exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
+               get(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)).data.userId == request.auth.uid;
+      }
       
-      // Allow create/update if user owns the business
-      allow create: if ownsAnalyticsBusiness() &&
-                    request.resource.data.businessId == resource.data.businessId;
+      // Allow read if user owns the business (handles both single reads and queries)
+      allow read: if isAuthenticated() &&
+                  resource.data.businessId != null &&
+                  exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+                  get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.userId == request.auth.uid;
       
+      // Allow create if user owns the business
+      allow create: if ownsAnalyticsBusinessForCreate();
+      
+      // Allow update if user owns the business
       allow update: if ownsAnalyticsBusiness() &&
                     request.resource.data.businessId == resource.data.businessId;
       

@@ -1,7 +1,7 @@
 "use client";
 
 import { SocialPost } from "@/lib/firebase/posts";
-import { Facebook, Instagram, Twitter, Linkedin, Image as ImageIcon } from "lucide-react";
+import { Facebook, Instagram, Twitter, Linkedin, Image as ImageIcon, FileText } from "lucide-react";
 
 interface PostPreviewProps {
   post: {

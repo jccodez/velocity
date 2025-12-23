@@ -178,27 +178,9 @@ export default function EditPostPage() {
         throw new Error(data.error || "Failed to generate image");
       }
 
-      // Download the image and upload to Firebase Storage
-      const imageResponse = await fetch(data.url);
-      const blob = await imageResponse.blob();
-      const file = new File([blob], "ai-generated.png", { type: "image/png" });
-
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("userId", user?.uid || "");
-
-      const uploadResponse = await fetch("/api/images/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const uploadData = await uploadResponse.json();
-
-      if (!uploadResponse.ok) {
-        throw new Error(uploadData.error || "Failed to upload generated image");
-      }
-
-      setMediaUrls((prev) => [...prev, uploadData.url]);
+      // Image is already uploaded to Firebase Storage by the API route
+      // Just use the returned URL directly
+      setMediaUrls((prev) => [...prev, data.url]);
       setImagePrompt("");
       alert("Image generated and uploaded successfully!");
     } catch (error: any) {

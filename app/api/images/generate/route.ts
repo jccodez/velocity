@@ -75,16 +75,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Optionally, download the image and upload to Firebase Storage
-    // For now, return the OpenAI URL directly
-    // Note: OpenAI URLs expire after a certain time, so you may want to download and store them
-    const imageUrl = data.data[0].url;
+    const openaiImageUrl = data.data[0].url;
 
-    return NextResponse.json({
-      success: true,
-      url: imageUrl,
-      revisedPrompt: data.data[0].revised_prompt || prompt,
-    });
+    // Download the image from OpenAI (server-side to avoid CORS issues)
+    try {
+      const imageResponse = await fetch(openaiImageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image: ${imageResponse.statusText}`);
+      }
+
+      const arrayBuffer = await imageResponse.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: "image/png" });
+
+      // Upload to Firebase Storage
+      const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+      const { storage } = await import("@/lib/firebase/config");
+
+      // Create a unique filename
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const fileName = `posts/ai-generated/${timestamp}-${randomString}.png`;
+
+      // Create storage reference
+      const storageRef = ref(storage, fileName);
+
+      // Upload file
+      await uploadBytes(storageRef, blob);
+
+      // Get download URL
+      const firebaseUrl = await getDownloadURL(storageRef);
+
+      return NextResponse.json({
+        success: true,
+        url: firebaseUrl,
+        revisedPrompt: data.data[0].revised_prompt || prompt,
+      });
+    } catch (uploadError: any) {
+      console.error("Error downloading/uploading image:", uploadError);
+      // If upload fails, still return the OpenAI URL as fallback
+      // (though it may have CORS issues on client-side)
+      return NextResponse.json({
+        success: true,
+        url: openaiImageUrl,
+        revisedPrompt: data.data[0].revised_prompt || prompt,
+        warning: "Image uploaded to Firebase Storage failed, using OpenAI URL (may have CORS issues)",
+      });
+    }
   } catch (error: any) {
     console.error("Error generating image:", error);
     return NextResponse.json(
